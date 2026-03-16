@@ -52,19 +52,16 @@ helm/winston/       # Helm chart for k8s deployment
 
 ```bash
 # Run locally (needs KUBECONFIG)
-go run ./cmd/winston
+make run
 
 # CLI report (against a running pod)
 kubectl exec -n <ns> <pod> -- /winston report
 
 # Build for arm64
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o winston ./cmd/winston
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 make build
 
-# Lint
-golangci-lint run ./...
-
-# Test
-go test ./...
+# Lint and Test
+make pre-commit
 ```
 
 ## Environment Variables

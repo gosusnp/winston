@@ -77,14 +77,13 @@ resources:
 
 ```bash
 # Local run (requires KUBECONFIG)
-go run ./cmd/winston
+make run
 
 # Cross-compile for arm64 (Raspberry Pi)
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-  go build -ldflags="-s -w" -o winston ./cmd/winston
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 make build
 
-# Docker (multi-arch)
-docker buildx build --platform linux/arm64 -t yourrepo/winston:latest --push .
+# Full check (fmt, lint, test)
+make pre-commit
 ```
 
 No CGo. Pure Go. Cross-compilation just works.
