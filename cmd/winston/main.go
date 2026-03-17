@@ -4,30 +4,202 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"io/fs"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"strconv"
+	"sync"
+	"syscall"
+	"time"
 
+	"github.com/gosusnp/winston/internal/analyzer"
+	"github.com/gosusnp/winston/internal/api"
+	"github.com/gosusnp/winston/internal/collector"
+	"github.com/gosusnp/winston/internal/report"
 	"github.com/gosusnp/winston/internal/store"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
+type config struct {
+	DBPath          string
+	Port            string
+	CollectInterval time.Duration
+	RetentionRawH   int
+	Retention1HDays int
+	Retention1DDays int
+}
+
 func main() {
-	dbPath := os.Getenv("WINSTON_DB_PATH")
-	if dbPath == "" {
-		dbPath = "/data/winston.db"
+	cfg := loadConfig()
+
+	if len(os.Args) > 1 && os.Args[1] == "report" {
+		runReport(cfg)
+	} else {
+		runServer(cfg)
 	}
+}
 
-	fmt.Printf("Winston starting with DB at %s\n", dbPath)
+func loadConfig() config {
+	return config{
+		DBPath:          getEnv("WINSTON_DB_PATH", "/data/winston.db"),
+		Port:            getEnv("WINSTON_PORT", "8080"),
+		CollectInterval: time.Duration(getEnvInt("WINSTON_COLLECT_INTERVAL", 60)) * time.Second,
+		RetentionRawH:   getEnvInt("WINSTON_RETENTION_RAW_H", 24),
+		Retention1HDays: getEnvInt("WINSTON_RETENTION_1H_DAYS", 7),
+		Retention1DDays: getEnvInt("WINSTON_RETENTION_1D_DAYS", 30),
+	}
+}
 
-	s, err := store.Open(dbPath)
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if value, ok := os.LookupEnv(key); ok {
+		if i, err := strconv.Atoi(value); err == nil {
+			return i
+		}
+	}
+	return fallback
+}
+
+func runReport(cfg config) {
+	s, err := store.Open(cfg.DBPath)
 	if err != nil {
-		log.Fatalf("Failed to open store: %v", err)
+		fmt.Fprintf(os.Stderr, "failed to open store: %v\n", err)
+		os.Exit(1)
 	}
 	defer func() {
 		if err := s.Close(); err != nil {
-			log.Printf("Error closing store: %v", err)
+			fmt.Fprintf(os.Stderr, "error closing store: %v\n", err)
 		}
 	}()
 
-	fmt.Println("Store initialized successfully")
+	a := analyzer.New(s)
+	results, err := a.Analyze(context.Background(), cfg.Retention1HDays)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "analysis error: %v\n", err)
+		os.Exit(1)
+	}
+
+	window := fmt.Sprintf("%dd", cfg.Retention1HDays)
+	if err := report.RenderExuberantMarkdown(os.Stdout, results, window, time.Now()); err != nil {
+		fmt.Fprintf(os.Stderr, "report error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runServer(cfg config) {
+	s, err := store.Open(cfg.DBPath)
+	if err != nil {
+		log.Fatalf("failed to open store: %v", err)
+	}
+	defer func() {
+		if err := s.Close(); err != nil {
+			log.Printf("error closing store: %v", err)
+		}
+	}()
+
+	// Kubernetes client setup
+	restConfig, err := rest.InClusterConfig()
+	if err != nil {
+		kubeconfig := os.Getenv("KUBECONFIG")
+		restConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			log.Fatalf("failed to build kubernetes config: %v", err)
+		}
+	}
+
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		log.Fatalf("failed to create kubernetes client: %v", err)
+	}
+
+	metricsClient, err := versioned.NewForConfig(restConfig)
+	if err != nil {
+		log.Fatalf("failed to create metrics client: %v", err)
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	var wg sync.WaitGroup
+
+	// Start collector
+	c := collector.New(clientset, metricsClient, s, cfg.CollectInterval)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c.Run(ctx)
+		log.Println("collector stopped")
+	}()
+
+	// Start compactor
+	compactionCfg := store.CompactionConfig{
+		RetentionRawH:   cfg.RetentionRawH,
+		Retention1HDays: cfg.Retention1HDays,
+		Retention1DDays: cfg.Retention1DDays,
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		log.Println("compactor started (hourly ticker)")
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				if err := s.Compact(ctx, now, compactionCfg); err != nil {
+					log.Printf("compaction error: %v", err)
+				}
+			}
+		}
+	}()
+
+	// Start API server
+	a := analyzer.New(s)
+	static, err := fs.Sub(staticFiles, "static")
+	if err != nil {
+		log.Fatalf("failed to sub static FS: %v", err)
+	}
+	srv := api.New(s, a, static)
+	httpServer := &http.Server{
+		Addr:         ":" + cfg.Port,
+		Handler:      srv.Handler(),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	go func() {
+		log.Printf("API server listening on :%s", cfg.Port)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("API server error: %v", err)
+			cancel()
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("shutting down...")
+
+	// Graceful shutdown for API server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("API server shutdown error: %v", err)
+	}
+
+	wg.Wait()
+	log.Println("all components stopped")
 }
