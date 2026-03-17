@@ -330,3 +330,48 @@ func (s *Store) AggRowsForWindow(ctx context.Context, resolution string, since i
 	}
 	return results, nil
 }
+
+func (s *Store) AggStatsForWindow(ctx context.Context, resolution string, since int64) ([]AggStats, error) {
+	query := `
+		SELECT 
+			m.namespace, m.owner_kind, m.owner_name, m.container_name,
+			m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b,
+			SUM(a.sample_count) as sample_count,
+			AVG(a.cpu_avg_m), MAX(a.cpu_max_m), AVG(a.cpu_stddev_m),
+			AVG(a.cpu_p50_m), AVG(a.cpu_p75_m), AVG(a.cpu_p90_m), AVG(a.cpu_p95_m), AVG(a.cpu_p99_m),
+			AVG(a.mem_avg_b), MAX(a.mem_max_b), AVG(a.mem_stddev_b),
+			AVG(a.mem_p50_b), AVG(a.mem_p75_b), AVG(a.mem_p90_b), AVG(a.mem_p95_b), AVG(a.mem_p99_b)
+		FROM metrics_agg a
+		JOIN pod_metadata m ON a.pod_id = m.id
+		WHERE a.resolution = ? AND a.bucket_start >= ?
+		GROUP BY m.namespace, m.owner_kind, m.owner_name, m.container_name, m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b
+		ORDER BY m.namespace, m.owner_name, m.container_name;
+	`
+	rows, err := s.db.QueryContext(ctx, query, resolution, since)
+	if err != nil {
+		return nil, fmt.Errorf("querying agg stats for window: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []AggStats
+	for rows.Next() {
+		var s AggStats
+		err := rows.Scan(
+			&s.Namespace, &s.OwnerKind, &s.OwnerName, &s.ContainerName,
+			&s.CPURequestM, &s.CPULimitM, &s.MemRequestB, &s.MemLimitB,
+			&s.SampleCount,
+			&s.CPUAvgM, &s.CPUMaxM, &s.CPUSTDDevM,
+			&s.CPUP50M, &s.CPUP75M, &s.CPUP90M, &s.CPUP95M, &s.CPUP99M,
+			&s.MemAvgB, &s.MemMaxB, &s.MemSTDDevB,
+			&s.MemP50B, &s.MemP75B, &s.MemP90B, &s.MemP95B, &s.MemP99B,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scanning agg stats row: %w", err)
+		}
+		results = append(results, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error in agg stats for window: %w", err)
+	}
+	return results, nil
+}

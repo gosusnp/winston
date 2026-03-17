@@ -68,3 +68,33 @@ type AggRow struct {
 	MemRequestB   int64
 	MemLimitB     int64
 }
+
+type AggStats struct {
+	Namespace     string
+	OwnerKind     string
+	OwnerName     string
+	ContainerName string
+	CPURequestM   int64
+	CPULimitM     int64
+	MemRequestB   int64
+	MemLimitB     int64
+	SampleCount   int64
+
+	CPUAvgM    int64
+	CPUMaxM    int64
+	CPUSTDDevM float64
+	CPUP50M    int64
+	CPUP75M    int64
+	CPUP90M    int64
+	CPUP95M    int64
+	CPUP99M    int64
+
+	MemAvgB    int64
+	MemMaxB    int64
+	MemSTDDevB float64
+	MemP50B    int64
+	MemP75B    int64
+	MemP90B    int64
+	MemP95B    int64
+	MemP99B    int64
+}
