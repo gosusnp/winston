@@ -16,7 +16,7 @@ func TestOpen(t *testing.T) {
 	defer func() { _ = s.Close() }()
 
 	// Check if tables were created
-	rows, err := s.db.Query("SELECT name FROM sqlite_master WHERE type='table';")
+	rows, err := s.db.QueryContext(context.Background(), "SELECT name FROM sqlite_master WHERE type='table';")
 	if err != nil {
 		t.Fatalf("failed to query sqlite_master: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestUpsertPodMetadata(t *testing.T) {
 
 	// Read back and verify
 	var m PodMeta
-	err = s.db.QueryRow(`
+	err = s.db.QueryRowContext(context.Background(), `
 		SELECT namespace, pod_name, container_name, owner_kind, owner_name,
 		       cpu_request_m, cpu_limit_m, mem_request_b, mem_limit_b,
 		       first_seen_at, last_seen_at
@@ -126,7 +126,7 @@ func TestUpsertPodMetadata_Idempotent(t *testing.T) {
 	var cpuLimitM int64
 	var lastSeenAt int64
 	var firstSeenAt int64
-	err = s.db.QueryRow("SELECT cpu_limit_m, last_seen_at, first_seen_at FROM pod_metadata WHERE id = ?", id1).
+	err = s.db.QueryRowContext(context.Background(), "SELECT cpu_limit_m, last_seen_at, first_seen_at FROM pod_metadata WHERE id = ?", id1).
 		Scan(&cpuLimitM, &lastSeenAt, &firstSeenAt)
 	if err != nil {
 		t.Fatalf("failed to read back: %v", err)

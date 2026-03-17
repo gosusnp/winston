@@ -16,8 +16,14 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
+type dbExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
 type Store struct {
-	db *sql.DB
+	db dbExecutor
 }
 
 func Open(path string) (*Store, error) {
@@ -58,7 +64,23 @@ func Open(path string) (*Store, error) {
 }
 
 func (s *Store) Close() error {
-	return s.db.Close()
+	if closer, ok := s.db.(interface{ Close() error }); ok {
+		return closer.Close()
+	}
+	return nil
+}
+
+// WithTx returns a new Store instance that uses the provided transaction.
+func (s *Store) WithTx(tx *sql.Tx) *Store {
+	return &Store{db: tx}
+}
+
+// BeginTx starts a new transaction and returns it.
+func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
+	if db, ok := s.db.(*sql.DB); ok {
+		return db.BeginTx(ctx, nil)
+	}
+	return nil, fmt.Errorf("store is not backed by *sql.DB")
 }
 
 func (s *Store) UpsertPodMetadata(ctx context.Context, meta PodMeta) (int64, error) {
@@ -75,7 +97,7 @@ func (s *Store) UpsertPodMetadata(ctx context.Context, meta PodMeta) (int64, err
 			cpu_limit_m = excluded.cpu_limit_m,
 			mem_request_b = excluded.mem_request_b,
 			mem_limit_b = excluded.mem_limit_b,
-			last_seen_at = excluded.last_seen_at
+			last_seen_at = MAX(last_seen_at, excluded.last_seen_at)
 		RETURNING id;
 	`
 	var id int64
@@ -264,7 +286,7 @@ func (s *Store) DeleteAggRowsBefore(ctx context.Context, resolution string, befo
 }
 
 func (s *Store) UpdateLastSeenAt(ctx context.Context, podID int64, lastSeenAt int64) error {
-	query := "UPDATE pod_metadata SET last_seen_at = ? WHERE id = ?;"
+	query := "UPDATE pod_metadata SET last_seen_at = MAX(last_seen_at, ?) WHERE id = ?;"
 	_, err := s.db.ExecContext(ctx, query, lastSeenAt, podID)
 	return err
 }
