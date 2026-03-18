@@ -3,14 +3,352 @@
  Copyright 2026 Jimmy Ma
  SPDX-License-Identifier: MIT
 -->
-
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Winston</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Winston — Workload Resource Observer</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --header-bg: #2d2d2d;
+            --card-bg: #262626;
+            --border-color: #404040;
+            --danger-color: #ff5f5f;
+            --warning-color: #ffbd5f;
+            --ghost-color: #9f5fff;
+            --safe-color: #5fff8f;
+            --link-color: #5fafff;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            line-height: 1.5;
+        }
+        header {
+            background-color: var(--header-bg);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        h1 { margin: 0; font-size: 1.5rem; }
+        .last-updated { font-size: 0.8rem; opacity: 0.7; }
+        main { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+        
+        .summary-badges {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .badge {
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+        }
+        .badge.danger { border-color: var(--danger-color); color: var(--danger-color); }
+        .badge.warning { border-color: var(--warning-color); color: var(--warning-color); }
+        .badge.ghost { border-color: var(--ghost-color); color: var(--ghost-color); }
+
+        section {
+            margin-bottom: 3rem;
+        }
+        h2 {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .card h3 { margin-top: 0; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            text-align: left;
+        }
+        th {
+            border-bottom: 2px solid var(--border-color);
+            padding: 0.75rem;
+            font-weight: 600;
+        }
+        td {
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem;
+            vertical-align: top;
+        }
+        tr:last-child td { border-bottom: none; }
+
+        details {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+        summary {
+            padding: 0.75rem;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        details[open] summary {
+            border-bottom: 1px solid var(--border-color);
+        }
+        .details-content {
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        .error-banner {
+            background-color: rgba(255, 95, 95, 0.1);
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 2rem;
+            display: none;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            opacity: 0.6;
+            font-style: italic;
+        }
+        .profile-tag {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.1);
+            margin-right: 0.3rem;
+        }
+    </style>
 </head>
 <body>
-    <h1>Winston</h1>
-    <p>Workload Resource Observer</p>
+    <header>
+        <h1>Winston</h1>
+        <div id="last-updated" class="last-updated">Updating...</div>
+    </header>
+
+    <main>
+        <div id="error-banner" class="error-banner"></div>
+
+        <div class="summary-badges">
+            <div id="badge-danger" class="badge">DANGER ZONE: -</div>
+            <div id="badge-warning" class="badge">OVER-PROVISIONED: -</div>
+            <div id="badge-ghost" class="badge">GHOST LIMIT: -</div>
+        </div>
+
+        <section id="exuberant-section">
+            <h2>Exuberant Pods</h2>
+            <div id="exuberant-content">
+                <div class="empty-state">Loading analysis...</div>
+            </div>
+        </section>
+
+        <section id="stats-section">
+            <h2>Current Snapshot</h2>
+            <div id="stats-content">
+                <div class="empty-state">Loading snapshot...</div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const escapeHTML = (str) => {
+            if (!str) return "";
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        };
+
+        const formatCPU = (v) => v >= 1000 ? (v / 1000).toFixed(1) + " CPU" : v + "m";
+        const formatMem = (v) => (v / 1048576).toFixed(0) + " Mi";
+        
+        const showError = (msg) => {
+            const banner = document.getElementById('error-banner');
+            banner.textContent = msg;
+            banner.style.display = 'block';
+        };
+
+        const clearError = () => {
+            const banner = document.getElementById('error-banner');
+            banner.textContent = '';
+            banner.style.display = 'none';
+        };
+
+        const fetchData = async () => {
+            clearError();
+            try {
+                const [statsRes, exuberantRes] = await Promise.all([
+                    fetch('/stats'),
+                    fetch('/exuberant')
+                ]);
+
+                if (!statsRes.ok) throw new Error(`Stats API failed: ${statsRes.status}`);
+                if (!exuberantRes.ok) throw new Error(`Exuberant API failed: ${exuberantRes.status}`);
+
+                const stats = await statsRes.json();
+                const exuberant = await exuberantRes.json();
+
+                render(stats, exuberant);
+            } catch (err) {
+                console.error(err);
+                showError(`Failed to fetch data: ${err.message}`);
+            }
+        };
+
+        const render = (stats, exuberant) => {
+            document.getElementById('last-updated').textContent = `Last Updated: ${new Date().toLocaleTimeString()}`;
+
+            // 1. Summary Badges
+            const workloads = exuberant.workloads || [];
+            const counts = { danger_zone: 0, over_provisioned: 0, ghost_limit: 0 };
+            workloads.forEach(w => {
+                w.profiles.forEach(p => { if (counts.hasOwnProperty(p)) counts[p]++; });
+            });
+
+            const bDanger = document.getElementById('badge-danger');
+            bDanger.textContent = `DANGER ZONE: ${counts.danger_zone}`;
+            bDanger.className = counts.danger_zone > 0 ? 'badge danger' : 'badge';
+
+            const bWarning = document.getElementById('badge-warning');
+            bWarning.textContent = `OVER-PROVISIONED: ${counts.over_provisioned}`;
+            bWarning.className = counts.over_provisioned > 0 ? 'badge warning' : 'badge';
+
+            const bGhost = document.getElementById('badge-ghost');
+            bGhost.textContent = `GHOST LIMIT: ${counts.ghost_limit}`;
+            bGhost.className = counts.ghost_limit > 0 ? 'badge ghost' : 'badge';
+
+            // 2. Exuberant Content
+            const exuberantContent = document.getElementById('exuberant-content');
+            if (workloads.length === 0) {
+                exuberantContent.innerHTML = '<div class="empty-state">No exuberant pods found. The cluster is clean.</div>';
+            } else {
+                exuberantContent.innerHTML = '';
+                
+                const profiles = [
+                    { id: 'danger_zone', title: 'Danger Zone', desc: 'Sustained usage ≥ 90% of limit. Throttling or OOMKill risk.' },
+                    { id: 'over_provisioned', title: 'Over-Provisioned', desc: 'p95 usage < 20% of request. Safe to reduce requests.' },
+                    { id: 'ghost_limit', title: 'Ghost Limit', desc: 'Absolute peak < 10% of limit. Limit is functionally unconstrained.' }
+                ];
+
+                profiles.forEach(p => {
+                    const matches = workloads.filter(w => w.profiles.includes(p.id));
+                    if (matches.length > 0) {
+                        const card = document.createElement('div');
+                        card.className = 'card';
+                        
+                        let tableHtml = `
+                            <h3>${escapeHTML(p.title)} <span style="font-size:0.8rem; font-weight:normal; opacity:0.7">— ${escapeHTML(p.desc)}</span></h3>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Namespace</th>
+                                        <th>Workload</th>
+                                        <th>Container</th>
+                                        ${p.id === 'danger_zone' ? '<th>CPU p90</th><th>CPU Limit</th><th>Mem p90</th><th>Mem Limit</th>' : ''}
+                                        ${p.id === 'over_provisioned' ? '<th>CPU p95</th><th>CPU Request</th><th>Mem p95</th><th>Mem Request</th>' : ''}
+                                        ${p.id === 'ghost_limit' ? '<th>CPU Max</th><th>CPU Limit</th><th>Mem Max</th><th>Mem Limit</th>' : ''}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+
+                        matches.forEach(m => {
+                            tableHtml += `<tr>
+                                <td>${escapeHTML(m.namespace)}</td>
+                                <td>${escapeHTML(m.owner_kind)}/${escapeHTML(m.owner_name)}</td>
+                                <td>${escapeHTML(m.container)}</td>
+                            `;
+                            if (p.id === 'danger_zone') {
+                                tableHtml += `<td>${formatCPU(m.cpu.p90_m)}</td><td>${formatCPU(m.current.cpu_limit_m)}</td><td>${formatMem(m.mem.p90_b)}</td><td>${formatMem(m.current.mem_limit_b)}</td>`;
+                            } else if (p.id === 'over_provisioned') {
+                                tableHtml += `<td>${formatCPU(m.cpu.p95_m)}</td><td>${formatCPU(m.current.cpu_request_m)}</td><td>${formatMem(m.mem.p95_b)}</td><td>${formatMem(m.current.mem_request_b)}</td>`;
+                            } else if (p.id === 'ghost_limit') {
+                                tableHtml += `<td>${formatCPU(m.cpu.max_m)}</td><td>${formatCPU(m.current.cpu_limit_m)}</td><td>${formatMem(m.mem.max_b)}</td><td>${formatMem(m.current.mem_limit_b)}</td>`;
+                            }
+                            tableHtml += `</tr>`;
+                        });
+
+                        tableHtml += `</tbody></table>`;
+                        card.innerHTML = tableHtml;
+                        exuberantContent.appendChild(card);
+                    }
+                });
+            }
+
+            // 3. Stats Content
+            const statsContent = document.getElementById('stats-content');
+            const namespaces = stats.namespaces || {};
+            if (Object.keys(namespaces).length === 0) {
+                statsContent.innerHTML = '<div class="empty-state">No pods found in the latest snapshot.</div>';
+            } else {
+                statsContent.innerHTML = '';
+                Object.keys(namespaces).sort().forEach(ns => {
+                    const details = document.createElement('details');
+                    const summary = document.createElement('summary');
+                    summary.textContent = `${ns} (${namespaces[ns].length} containers)`;
+                    details.appendChild(summary);
+
+                    const div = document.createElement('div');
+                    div.className = 'details-content';
+                    
+                    let tableHtml = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Pod</th>
+                                    <th>Container</th>
+                                    <th>CPU Usage</th>
+                                    <th>CPU Req/Lim</th>
+                                    <th>Mem Usage</th>
+                                    <th>Mem Req/Lim</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    namespaces[ns].forEach(c => {
+                        tableHtml += `
+                            <tr>
+                                <td>${escapeHTML(c.pod)}</td>
+                                <td>${escapeHTML(c.container)}</td>
+                                <td>${formatCPU(c.cpu_m)}</td>
+                                <td>${formatCPU(c.cpu_request_m)} / ${formatCPU(c.cpu_limit_m)}</td>
+                                <td>${formatMem(c.mem_b)}</td>
+                                <td>${formatMem(c.mem_request_b)} / ${formatMem(c.mem_limit_b)}</td>
+                            </tr>
+                        `;
+                    });
+
+                    tableHtml += `</tbody></table>`;
+                    div.innerHTML = tableHtml;
+                    details.appendChild(div);
+                    statsContent.appendChild(details);
+                });
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchData();
+            setInterval(fetchData, 60000); // Auto-refresh every 60 seconds
+        });
+    </script>
 </body>
 </html>
