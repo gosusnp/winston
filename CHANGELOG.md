@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/gosusnp/winston/compare/v0.1.2...v0.1.3) (2026-03-18)
+
+
+### Bug Fixes
+
+* fix error logging ([7e2738f](https://github.com/gosusnp/winston/commit/7e2738f828ed2707b2bd86fe3069fe15be153029))
+
 ## [0.1.2](https://github.com/gosusnp/winston/compare/v0.1.1...v0.1.2) (2026-03-18)
 
 
