@@ -336,11 +336,23 @@ func (s *Store) AggStatsForWindow(ctx context.Context, resolution string, since 
 		SELECT 
 			m.namespace, m.owner_kind, m.owner_name, m.container_name,
 			m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b,
-			SUM(a.sample_count) as sample_count,
-			AVG(a.cpu_avg_m), MAX(a.cpu_max_m), AVG(a.cpu_stddev_m),
-			AVG(a.cpu_p50_m), AVG(a.cpu_p75_m), AVG(a.cpu_p90_m), AVG(a.cpu_p95_m), AVG(a.cpu_p99_m),
-			AVG(a.mem_avg_b), MAX(a.mem_max_b), AVG(a.mem_stddev_b),
-			AVG(a.mem_p50_b), AVG(a.mem_p75_b), AVG(a.mem_p90_b), AVG(a.mem_p95_b), AVG(a.mem_p99_b)
+			CAST(SUM(a.sample_count) AS INTEGER) as sample_count,
+			CAST(ROUND(AVG(a.cpu_avg_m)) AS INTEGER), 
+			CAST(MAX(a.cpu_max_m) AS INTEGER), 
+			AVG(a.cpu_stddev_m),
+			CAST(ROUND(AVG(a.cpu_p50_m)) AS INTEGER), 
+			CAST(ROUND(AVG(a.cpu_p75_m)) AS INTEGER), 
+			CAST(ROUND(AVG(a.cpu_p90_m)) AS INTEGER), 
+			CAST(ROUND(AVG(a.cpu_p95_m)) AS INTEGER), 
+			CAST(ROUND(AVG(a.cpu_p99_m)) AS INTEGER),
+			CAST(ROUND(AVG(a.mem_avg_b)) AS INTEGER), 
+			CAST(MAX(a.mem_max_b) AS INTEGER), 
+			AVG(a.mem_stddev_b),
+			CAST(ROUND(AVG(a.mem_p50_b)) AS INTEGER), 
+			CAST(ROUND(AVG(a.mem_p75_b)) AS INTEGER), 
+			CAST(ROUND(AVG(a.mem_p90_b)) AS INTEGER), 
+			CAST(ROUND(AVG(a.mem_p95_b)) AS INTEGER), 
+			CAST(ROUND(AVG(a.mem_p99_b)) AS INTEGER)
 		FROM metrics_agg a
 		JOIN pod_metadata m ON a.pod_id = m.id
 		WHERE a.resolution = ? AND a.bucket_start >= ?

@@ -2,9 +2,9 @@
 build:
 	go build -ldflags '$(LDFLAGS)' -o winston ./cmd/winston
 
-check: lint test
+check: lint test test-integration
 
-ci: fmt-check license-check lint test
+ci: fmt-check license-check lint test test-integration
 
 clean:
 	rm -f winston
@@ -40,4 +40,7 @@ run:
 	go run ./cmd/winston
 
 test:
-	go tool gotestsum --format pkgname-and-test-fails -- -cover $$(go list ./...)
+	go tool gotestsum --format pkgname-and-test-fails -- -cover -race $$(go list ./...)
+
+test-integration:
+	go tool gotestsum --format pkgname-and-test-fails -- -cover -race -tags integration ./internal/integration/...
