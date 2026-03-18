@@ -5,6 +5,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -233,6 +234,45 @@ func TestLatestRawPerContainer_MultiPod(t *testing.T) {
 
 	if !foundP1 || !foundP2 {
 		t.Errorf("did not find both pods: p1=%v, p2=%v", foundP1, foundP2)
+	}
+}
+
+func TestTransact_RollbackOnError(t *testing.T) {
+	s, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	ctx := context.Background()
+	podID, err := s.UpsertPodMetadata(ctx, PodMeta{Namespace: "default", PodName: "pod1", ContainerName: "c1"})
+	if err != nil {
+		t.Fatalf("upsert pod metadata failed: %v", err)
+	}
+
+	injected := errors.New("injected error")
+	err = s.transact(ctx, func(txs *Store) error {
+		if err := txs.UpsertAggBucket(ctx, AggBucket{
+			PodID:       podID,
+			Resolution:  "1h",
+			BucketStart: 3600,
+			SampleCount: 10,
+		}); err != nil {
+			return err
+		}
+		return injected
+	})
+
+	if !errors.Is(err, injected) {
+		t.Fatalf("expected injected error, got %v", err)
+	}
+
+	rows, err := s.AggRowsForWindow(ctx, "1h", 0)
+	if err != nil {
+		t.Fatalf("query agg rows failed: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("expected 0 agg rows after rollback, got %d", len(rows))
 	}
 }
 

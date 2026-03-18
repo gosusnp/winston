@@ -83,6 +83,23 @@ func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
 	return nil, fmt.Errorf("store is not backed by *sql.DB")
 }
 
+// transact runs a function in a transaction. If s already has a transaction,
+// it just runs fn(s). Otherwise it begins a new transaction and commits it.
+func (s *Store) transact(ctx context.Context, fn func(*Store) error) error {
+	if _, ok := s.db.(*sql.Tx); ok {
+		return fn(s)
+	}
+	tx, err := s.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := fn(s.WithTx(tx)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *Store) UpsertPodMetadata(ctx context.Context, meta PodMeta) (int64, error) {
 	query := `
 		INSERT INTO pod_metadata (

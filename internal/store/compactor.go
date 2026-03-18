@@ -28,33 +28,20 @@ func (s *Store) Compact(ctx context.Context, now time.Time, cfg CompactionConfig
 		cfg.Retention1DDays = 30
 	}
 
-	tx, err := s.BeginTx(ctx)
-	if err != nil {
-		return fmt.Errorf("beginning transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	// Create a transaction-aware Store for compaction steps
-	txStore := s.WithTx(tx)
-
 	// Step 1: Raw -> 1h
-	if err := txStore.compactRawTo1H(ctx, now, cfg.RetentionRawH); err != nil {
+	if err := s.compactRawTo1H(ctx, now, cfg.RetentionRawH); err != nil {
 		return fmt.Errorf("compacting raw to 1h: %w", err)
 	}
 
 	// Step 2: 1h -> 1d
-	if err := txStore.compact1HTo1D(ctx, now, cfg.Retention1HDays); err != nil {
+	if err := s.compact1HTo1D(ctx, now, cfg.Retention1HDays); err != nil {
 		return fmt.Errorf("compacting 1h to 1d: %w", err)
 	}
 
 	// Step 3: Prune old 1d rows
 	cutoff1D := now.AddDate(0, 0, -cfg.Retention1DDays).Unix()
-	if err := txStore.DeleteAggRowsBefore(ctx, "1d", cutoff1D); err != nil {
+	if err := s.DeleteAggRowsBefore(ctx, "1d", cutoff1D); err != nil {
 		return fmt.Errorf("pruning 1d rows: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing transaction: %w", err)
 	}
 
 	return nil
@@ -84,30 +71,32 @@ func (s *Store) compactRawTo1H(ctx context.Context, now time.Time, retentionH in
 
 	lastSeen := make(map[int64]int64)
 
-	for key, groupRows := range groups {
-		bucket := computeAggBucket(key.podID, "1h", key.hourBucket, groupRows)
-		if err := s.UpsertAggBucket(ctx, bucket); err != nil {
-			return err
-		}
+	return s.transact(ctx, func(txs *Store) error {
+		for key, groupRows := range groups {
+			bucket := computeAggBucket(key.podID, "1h", key.hourBucket, groupRows)
+			if err := txs.UpsertAggBucket(ctx, bucket); err != nil {
+				return err
+			}
 
-		maxCapturedAt := int64(0)
-		for _, r := range groupRows {
-			if r.CapturedAt > maxCapturedAt {
-				maxCapturedAt = r.CapturedAt
+			maxCapturedAt := int64(0)
+			for _, r := range groupRows {
+				if r.CapturedAt > maxCapturedAt {
+					maxCapturedAt = r.CapturedAt
+				}
+			}
+			if maxCapturedAt > lastSeen[key.podID] {
+				lastSeen[key.podID] = maxCapturedAt
 			}
 		}
-		if maxCapturedAt > lastSeen[key.podID] {
-			lastSeen[key.podID] = maxCapturedAt
-		}
-	}
 
-	for podID, ls := range lastSeen {
-		if err := s.UpdateLastSeenAt(ctx, podID, ls); err != nil {
-			return err
+		for podID, ls := range lastSeen {
+			if err := txs.UpdateLastSeenAt(ctx, podID, ls); err != nil {
+				return err
+			}
 		}
-	}
 
-	return s.DeleteRawRowsBefore(ctx, cutoff)
+		return txs.DeleteRawRowsBefore(ctx, cutoff)
+	})
 }
 
 func computeAggBucket(podID int64, resolution string, bucketStart int64, rows []RawRow) AggBucket {
@@ -206,32 +195,34 @@ func (s *Store) compact1HTo1D(ctx context.Context, now time.Time, retentionDays 
 
 	lastSeen := make(map[int64]int64)
 
-	for key, groupRows := range groups {
-		bucket := computeWeightedAggBucket(key.podID, "1d", key.dayBucket, groupRows)
-		if err := s.UpsertAggBucket(ctx, bucket); err != nil {
-			return err
-		}
+	return s.transact(ctx, func(txs *Store) error {
+		for key, groupRows := range groups {
+			bucket := computeWeightedAggBucket(key.podID, "1d", key.dayBucket, groupRows)
+			if err := txs.UpsertAggBucket(ctx, bucket); err != nil {
+				return err
+			}
 
-		maxSeenAt := int64(0)
-		for _, r := range groupRows {
-			// A 1h bucket starting at BucketStart covers up to BucketStart + 3599
-			endOfBucket := r.BucketStart + 3599
-			if endOfBucket > maxSeenAt {
-				maxSeenAt = endOfBucket
+			maxSeenAt := int64(0)
+			for _, r := range groupRows {
+				// A 1h bucket starting at BucketStart covers up to BucketStart + 3599
+				endOfBucket := r.BucketStart + 3599
+				if endOfBucket > maxSeenAt {
+					maxSeenAt = endOfBucket
+				}
+			}
+			if maxSeenAt > lastSeen[key.podID] {
+				lastSeen[key.podID] = maxSeenAt
 			}
 		}
-		if maxSeenAt > lastSeen[key.podID] {
-			lastSeen[key.podID] = maxSeenAt
-		}
-	}
 
-	for podID, ls := range lastSeen {
-		if err := s.UpdateLastSeenAt(ctx, podID, ls); err != nil {
-			return err
+		for podID, ls := range lastSeen {
+			if err := txs.UpdateLastSeenAt(ctx, podID, ls); err != nil {
+				return err
+			}
 		}
-	}
 
-	return s.DeleteAggRowsBefore(ctx, "1h", cutoff)
+		return txs.DeleteAggRowsBefore(ctx, "1h", cutoff)
+	})
 }
 
 func computeWeightedAggBucket(podID int64, resolution string, bucketStart int64, rows []AggRow) AggBucket {
