@@ -55,8 +55,19 @@ func Open(path string) (*Store, error) {
 		if query == "" {
 			continue
 		}
+		// Strip comment-only blocks (license headers, etc.)
+		var lines []string
+		for _, line := range strings.Split(query, "\n") {
+			if !strings.HasPrefix(strings.TrimSpace(line), "--") {
+				lines = append(lines, line)
+			}
+		}
+		query = strings.TrimSpace(strings.Join(lines, "\n"))
+		if query == "" {
+			continue
+		}
 		if _, err := db.Exec(query); err != nil {
-			return nil, fmt.Errorf("running schema query: %w\nQuery: %s", err, query)
+			return nil, fmt.Errorf("running schema migration: %w", err)
 		}
 	}
 
