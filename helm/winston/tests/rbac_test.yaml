@@ -1,0 +1,45 @@
+# Copyright 2026 Jimmy Ma
+# SPDX-License-Identifier: MIT
+
+suite: rbac
+templates:
+  - clusterrole.yaml
+  - clusterrolebinding.yaml
+  - serviceaccount.yaml
+tests:
+  - it: clusterrole allows get/list/watch pods
+    template: clusterrole.yaml
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["pods"]
+            verbs: ["get", "list", "watch"]
+
+  - it: clusterrole allows get/list on metrics pods
+    template: clusterrole.yaml
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["metrics.k8s.io"]
+            resources: ["pods"]
+            verbs: ["get", "list"]
+
+  - it: clusterrolebinding references the clusterrole
+    template: clusterrolebinding.yaml
+    asserts:
+      - equal:
+          path: roleRef.name
+          value: RELEASE-NAME-winston
+
+  - it: clusterrolebinding binds the service account
+    template: clusterrolebinding.yaml
+    asserts:
+      - contains:
+          path: subjects
+          content:
+            kind: ServiceAccount
+            name: RELEASE-NAME-winston
+            namespace: NAMESPACE

@@ -2,9 +2,9 @@
 build:
 	go build -ldflags '$(LDFLAGS)' -o winston ./cmd/winston
 
-check: lint test test-integration
+check: lint helm-lint helm-test test test-integration
 
-ci: fmt-check license-check lint test test-integration
+ci: fmt-check license-check lint helm-lint helm-test test test-integration
 
 clean:
 	rm -f winston
@@ -29,6 +29,12 @@ license-check:
 
 license-fix:
 	go tool addlicense -l mit -c "Jimmy Ma" -s=only .
+
+helm-lint:
+	helm lint helm/winston/
+
+helm-test:
+	helm unittest helm/winston/
 
 lint:
 	go vet $$(go list ./...)
