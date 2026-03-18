@@ -20,6 +20,10 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - uses: azure/setup-helm@v4
+
+      - run: helm plugin install https://github.com/helm-unittest/helm-unittest --verify=false
+
       - run: make ci
 
   build:

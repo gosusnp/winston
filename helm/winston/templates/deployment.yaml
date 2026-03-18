@@ -1,0 +1,49 @@
+# Copyright 2026 Jimmy Ma
+# SPDX-License-Identifier: MIT
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "winston.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ include "winston.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "winston.fullname" . }}
+    spec:
+      serviceAccountName: {{ include "winston.fullname" . }}
+      containers:
+        - name: winston
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: WINSTON_DB_PATH
+              value: /data/winston.db
+            - name: WINSTON_PORT
+              value: "{{ .Values.service.port }}"
+            - name: WINSTON_COLLECT_INTERVAL
+              value: "{{ .Values.collector.intervalSeconds }}"
+            - name: WINSTON_RETENTION_RAW_H
+              value: "{{ .Values.retention.rawHours }}"
+            - name: WINSTON_RETENTION_1H_DAYS
+              value: "{{ .Values.retention.oneHourDays }}"
+            - name: WINSTON_RETENTION_1D_DAYS
+              value: "{{ .Values.retention.oneDayDays }}"
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "winston.fullname" . }}-data

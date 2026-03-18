@@ -1,0 +1,15 @@
+# Copyright 2026 Jimmy Ma
+# SPDX-License-Identifier: MIT
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "winston.fullname" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "winston.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "winston.fullname" . }}
+    namespace: {{ .Release.Namespace }}

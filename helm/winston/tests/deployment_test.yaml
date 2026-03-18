@@ -1,0 +1,100 @@
+# Copyright 2026 Jimmy Ma
+# SPDX-License-Identifier: MIT
+
+suite: deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: is a Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: uses Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: has exactly one replica
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: mounts data volume at /data
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+
+  - it: references the PVC
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME-winston-data
+
+  - it: sets WINSTON_DB_PATH
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WINSTON_DB_PATH
+            value: /data/winston.db
+
+  - it: sets WINSTON_PORT from values
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WINSTON_PORT
+            value: "8080"
+
+  - it: sets WINSTON_COLLECT_INTERVAL from values
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WINSTON_COLLECT_INTERVAL
+            value: "60"
+
+  - it: sets retention env vars
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WINSTON_RETENTION_RAW_H
+            value: "24"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WINSTON_RETENTION_1H_DAYS
+            value: "7"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WINSTON_RETENTION_1D_DAYS
+            value: "30"
+
+  - it: uses the service account
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-winston
+
+  - it: sets resource requests and limits
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 10m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 32Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 64Mi

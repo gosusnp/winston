@@ -1,0 +1,36 @@
+# Copyright 2026 Jimmy Ma
+# SPDX-License-Identifier: MIT
+
+suite: pvc
+templates:
+  - pvc.yaml
+tests:
+  - it: is a PersistentVolumeClaim
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+
+  - it: uses ReadWriteOnce access mode
+    asserts:
+      - contains:
+          path: spec.accessModes
+          content: ReadWriteOnce
+
+  - it: requests storage size from values
+    asserts:
+      - equal:
+          path: spec.resources.requests.storage
+          value: 1Gi
+
+  - it: omits storageClassName when empty
+    asserts:
+      - notExists:
+          path: spec.storageClassName
+
+  - it: sets storageClassName when provided
+    set:
+      storage.storageClassName: local-path
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: local-path

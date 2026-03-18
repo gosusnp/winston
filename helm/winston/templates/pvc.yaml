@@ -1,0 +1,16 @@
+# Copyright 2026 Jimmy Ma
+# SPDX-License-Identifier: MIT
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "winston.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- if .Values.storage.storageClassName }}
+  storageClassName: {{ .Values.storage.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.size }}
