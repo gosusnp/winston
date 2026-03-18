@@ -23,8 +23,8 @@ winston/
 │   │   └── report.go         # Renders analysis as JSON or Markdown; shared by API and CLI
 │   └── api/
 │       └── server.go         # net/http handlers: /stats, /exuberant, / (static UI)
-├── static/
-│   └── index.html            # Embedded UI (go:embed); fetches JSON API, renders client-side
+│       └── static/
+│           └── index.html    # Embedded UI (go:embed); fetches JSON API, renders client-side
 ├── helm/
 │   └── winston/
 │       ├── Chart.yaml
@@ -211,7 +211,7 @@ The 1GB PVC has headroom for years of history at Pi-cluster scale.
 
 ## 5. Exuberance Profile Queries
 
-All profiles query `metrics_agg` at `1h` resolution over a configurable lookback window (default: 7 days). A pod can match multiple profiles simultaneously; the response includes a `profiles` array per container.
+All profiles query `metrics_agg` at `1h` resolution over a fixed 7-day lookback window. A pod can match multiple profiles simultaneously; the response includes a `profiles` array per container.
 
 Profiles operate on pre-computed percentiles rather than raw averages, giving more meaningful signal:
 
@@ -251,7 +251,7 @@ Base: `http://<service>:8080`
 
 ### `GET /`
 
-Serves the embedded static UI (`static/index.html` bundled via `go:embed`). The page fetches `/stats` and `/exuberant` as JSON and renders them client-side. No server-side rendering — the binary serves a single HTML file; all logic is in the browser.
+Serves the embedded static UI (`cmd/winston/static/index.html` bundled via `go:embed`). The page fetches `/stats` and `/exuberant` as JSON and renders them client-side. No server-side rendering — the binary serves a single HTML file; all logic is in the browser.
 
 ### `GET /stats`
 
@@ -376,17 +376,24 @@ Key `values.yaml` knobs:
 
 ```yaml
 image:
-  repository: ghcr.io/yourorg/winston
+  repository: ghcr.io/gosusnp/winston
   tag: latest
   pullPolicy: IfNotPresent
 
 collector:
   intervalSeconds: 60       # matches metrics.k8s.io scrape interval
-  retentionDays: 7
+
+retention:
+  rawHours: 24
+  oneHourDays: 7
+  oneDayDays: 30
 
 storage:
   size: 1Gi
-  storageClassName: local-path   # k3s default
+  storageClassName: ""      # leave empty to use the cluster default
+
+service:
+  port: 8080
 
 resources:
   requests:
@@ -402,33 +409,27 @@ The Deployment uses `strategy: Recreate` (not RollingUpdate) because the PVC is 
 
 ## 9. Docker Build
 
-Multi-stage build targeting `linux/arm64`.
+The binary is built outside Docker (by the CI pipeline using `make build`) and then copied into a minimal `distroless` image. This avoids Go module caching complexity inside Docker while keeping the image small.
 
 ```dockerfile
-# Stage 1: Build
-FROM golang:1.22-alpine AS builder
-WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-    go build -ldflags="-s -w" -o /winston ./cmd/winston
-
-# Stage 2: Final image
 FROM gcr.io/distroless/static:nonroot
-COPY --from=builder /winston /winston
+COPY winston /winston
 USER nonroot:nonroot
 ENTRYPOINT ["/winston"]
 ```
 
 `CGO_ENABLED=0` is possible because `modernc.org/sqlite` is a pure-Go SQLite port. The `distroless/static` base has no shell, libc, or package manager — resulting in an image around 10–15MB.
 
-To build and push:
+To build the binary and image:
 
 ```bash
+# Build arm64 binary
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 make build
+
+# Build and push image
 docker buildx build \
   --platform linux/arm64 \
-  --tag ghcr.io/yourorg/winston:latest \
+  --tag ghcr.io/gosusnp/winston:latest \
   --push .
 ```
 
@@ -466,7 +467,7 @@ The `metrics.k8s.io` API has its own scrape interval (typically 60s in k3s). Pol
 
 ### Embedded static UI via `go:embed`
 
-The UI is a single `static/index.html` file bundled into the binary. It fetches the JSON API at runtime and renders client-side. This keeps the binary self-contained — no separate web server or file serving infrastructure — while allowing the UI to be iterated on independently of the Go code.
+The UI is a single `cmd/winston/static/index.html` file bundled into the binary. It fetches the JSON API at runtime and renders client-side. This keeps the binary self-contained — no separate web server or file serving infrastructure — while allowing the UI to be iterated on independently of the Go code.
 
 ### Progressive compaction over pure query-time aggregation
 

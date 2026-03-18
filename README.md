@@ -59,16 +59,32 @@ Winston needs a `ClusterRole` to read pods and pod metrics across all namespaces
 Key values:
 
 ```yaml
+image:
+  repository: ghcr.io/gosusnp/winston
+  tag: latest
+  pullPolicy: IfNotPresent
+
 collector:
   intervalSeconds: 60    # matches metrics.k8s.io scrape interval
 
+retention:
+  rawHours: 24           # keep raw 1-min samples for this many hours
+  oneHourDays: 7         # keep 1h buckets for this many days
+  oneDayDays: 30         # keep 1d buckets for this many days
+
 storage:
   size: 1Gi              # PVC size; ~12MB used for 200 containers / 30 days
+  storageClassName: ""   # leave empty to use the cluster default (e.g. local-path on k3s)
+
+service:
+  port: 8080
 
 resources:
   requests:
     cpu: 10m
     memory: 32Mi
+  limits:
+    memory: 64Mi
 ```
 
 ---
