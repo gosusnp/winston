@@ -27,6 +27,8 @@ import (
 	"k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
+var version = "dev"
+
 type config struct {
 	DBPath          string
 	Port            string
@@ -39,8 +41,16 @@ type config struct {
 func main() {
 	cfg := loadConfig()
 
-	if len(os.Args) > 1 && os.Args[1] == "report" {
-		runReport(cfg)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "report":
+			runReport(cfg)
+		case "version":
+			fmt.Println(version)
+		default:
+			fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
+			os.Exit(1)
+		}
 	} else {
 		runServer(cfg)
 	}
@@ -100,6 +110,8 @@ func runReport(cfg config) {
 }
 
 func runServer(cfg config) {
+	log.Printf("winston %s starting", version)
+
 	s, err := store.Open(cfg.DBPath)
 	if err != nil {
 		log.Fatalf("failed to open store: %v", err)
