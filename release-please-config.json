@@ -4,7 +4,8 @@
   "packages": {
     ".": {
       "release-type": "go",
-      "initial-version": "0.1.0"
+      "initial-version": "0.1.0",
+      "paths": ["cmd", "internal", "static", "go.mod", "go.sum", "Dockerfile"]
     },
     "helm/winston": {
       "release-type": "helm",
