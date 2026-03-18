@@ -19,6 +19,8 @@ spec:
         app: {{ include "winston.fullname" . }}
     spec:
       serviceAccountName: {{ include "winston.fullname" . }}
+      securityContext:
+        fsGroup: 65532
       containers:
         - name: winston
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
