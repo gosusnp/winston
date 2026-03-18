@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/gosusnp/winston/compare/winston-v0.1.2...winston-v0.1.3) (2026-03-18)
+
+
+### Bug Fixes
+
+* **helm:** add fsGroup ([56d9cf4](https://github.com/gosusnp/winston/commit/56d9cf4deaab19d00e8db2e3b512a66edc17e9cd))
+
 ## [0.1.2](https://github.com/gosusnp/winston/compare/winston-v0.1.1...winston-v0.1.2) (2026-03-18)
 
 
