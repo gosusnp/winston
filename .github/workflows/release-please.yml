@@ -68,7 +68,6 @@ jobs:
       - name: Update appVersion in Chart.yaml
         run: |
           VERSION=${{ needs.release-please.outputs.tag_name }}
-          VERSION=${VERSION#v}
           sed -i "s/^appVersion:.*$/appVersion: \"${VERSION}\"/" helm/winston/Chart.yaml
 
       - name: Commit updated Chart.yaml
