@@ -167,6 +167,9 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int) ([]WorkloadRes
 	}
 
 	for _, p := range unbound {
+		// profiles is always non-empty here: the store query filters on
+		// (cpu_limit_m=0 OR mem_limit_b=0 OR cpu_request_m=0 OR mem_request_b=0),
+		// so at least one of the two blocks below will always fire.
 		var profiles []Profile
 		if p.CPULimitM == 0 || p.MemLimitB == 0 {
 			profiles = append(profiles, NoLimits)
