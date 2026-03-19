@@ -361,31 +361,31 @@ func (s *Store) AggRowsForWindow(ctx context.Context, resolution string, since i
 
 func (s *Store) AggStatsForWindow(ctx context.Context, resolution string, since int64) ([]AggStats, error) {
 	query := `
-		SELECT 
-			m.namespace, m.owner_kind, m.owner_name, m.container_name,
+		SELECT
+			m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name,
 			m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b,
 			CAST(SUM(a.sample_count) AS INTEGER) as sample_count,
-			CAST(ROUND(AVG(a.cpu_avg_m)) AS INTEGER), 
-			CAST(MAX(a.cpu_max_m) AS INTEGER), 
+			CAST(ROUND(AVG(a.cpu_avg_m)) AS INTEGER),
+			CAST(MAX(a.cpu_max_m) AS INTEGER),
 			AVG(a.cpu_stddev_m),
-			CAST(ROUND(AVG(a.cpu_p50_m)) AS INTEGER), 
-			CAST(ROUND(AVG(a.cpu_p75_m)) AS INTEGER), 
-			CAST(ROUND(AVG(a.cpu_p90_m)) AS INTEGER), 
-			CAST(ROUND(AVG(a.cpu_p95_m)) AS INTEGER), 
+			CAST(ROUND(AVG(a.cpu_p50_m)) AS INTEGER),
+			CAST(ROUND(AVG(a.cpu_p75_m)) AS INTEGER),
+			CAST(ROUND(AVG(a.cpu_p90_m)) AS INTEGER),
+			CAST(ROUND(AVG(a.cpu_p95_m)) AS INTEGER),
 			CAST(ROUND(AVG(a.cpu_p99_m)) AS INTEGER),
-			CAST(ROUND(AVG(a.mem_avg_b)) AS INTEGER), 
-			CAST(MAX(a.mem_max_b) AS INTEGER), 
+			CAST(ROUND(AVG(a.mem_avg_b)) AS INTEGER),
+			CAST(MAX(a.mem_max_b) AS INTEGER),
 			AVG(a.mem_stddev_b),
-			CAST(ROUND(AVG(a.mem_p50_b)) AS INTEGER), 
-			CAST(ROUND(AVG(a.mem_p75_b)) AS INTEGER), 
-			CAST(ROUND(AVG(a.mem_p90_b)) AS INTEGER), 
-			CAST(ROUND(AVG(a.mem_p95_b)) AS INTEGER), 
+			CAST(ROUND(AVG(a.mem_p50_b)) AS INTEGER),
+			CAST(ROUND(AVG(a.mem_p75_b)) AS INTEGER),
+			CAST(ROUND(AVG(a.mem_p90_b)) AS INTEGER),
+			CAST(ROUND(AVG(a.mem_p95_b)) AS INTEGER),
 			CAST(ROUND(AVG(a.mem_p99_b)) AS INTEGER)
 		FROM metrics_agg a
 		JOIN pod_metadata m ON a.pod_id = m.id
 		WHERE a.resolution = ? AND a.bucket_start >= ?
-		GROUP BY m.namespace, m.owner_kind, m.owner_name, m.container_name, m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b
-		ORDER BY m.namespace, m.owner_name, m.container_name;
+		GROUP BY m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name, m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b
+		ORDER BY m.namespace, COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name;
 	`
 	rows, err := s.db.QueryContext(ctx, query, resolution, since)
 	if err != nil {
@@ -421,15 +421,15 @@ func (s *Store) AggStatsForWindow(ctx context.Context, resolution string, since 
 // directly so it returns results immediately after the first collection tick.
 func (s *Store) PodsWithMissingConfig(ctx context.Context) ([]UnboundPod, error) {
 	query := `
-		SELECT m.namespace, m.owner_kind, m.owner_name, m.container_name,
+		SELECT m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name,
 		       m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b,
 		       COUNT(r.pod_id) as raw_samples
 		FROM pod_metadata m
 		LEFT JOIN metrics_raw r ON r.pod_id = m.id
 		WHERE m.cpu_limit_m = 0 OR m.mem_limit_b = 0 OR m.cpu_request_m = 0 OR m.mem_request_b = 0
-		GROUP BY m.namespace, m.owner_kind, m.owner_name, m.container_name,
+		GROUP BY m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name,
 		         m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b
-		ORDER BY m.namespace, m.owner_name, m.container_name;
+		ORDER BY m.namespace, COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name;
 	`
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {

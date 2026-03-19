@@ -276,6 +276,106 @@ func TestTransact_RollbackOnError(t *testing.T) {
 	}
 }
 
+func TestPodsWithMissingConfig_StandalonePods(t *testing.T) {
+	s, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	ctx := context.Background()
+
+	// Two standalone pods (no owner) with missing limits — must not collapse into one row.
+	_, err = s.UpsertPodMetadata(ctx, PodMeta{
+		Namespace: "default", PodName: "solo-a", ContainerName: "app",
+		CPURequestM: 100, CPULimitM: 0, // missing limit
+		FirstSeenAt: 1000, LastSeenAt: 1000,
+	})
+	if err != nil {
+		t.Fatalf("upsert solo-a failed: %v", err)
+	}
+	_, err = s.UpsertPodMetadata(ctx, PodMeta{
+		Namespace: "default", PodName: "solo-b", ContainerName: "app",
+		CPURequestM: 100, CPULimitM: 0, // missing limit
+		FirstSeenAt: 1000, LastSeenAt: 1000,
+	})
+	if err != nil {
+		t.Fatalf("upsert solo-b failed: %v", err)
+	}
+
+	pods, err := s.PodsWithMissingConfig(ctx)
+	if err != nil {
+		t.Fatalf("PodsWithMissingConfig failed: %v", err)
+	}
+
+	if len(pods) != 2 {
+		t.Errorf("expected 2 pods, got %d: %+v", len(pods), pods)
+	}
+
+	names := make(map[string]bool)
+	for _, p := range pods {
+		names[p.OwnerName] = true
+	}
+	if !names["solo-a"] || !names["solo-b"] {
+		t.Errorf("expected both solo-a and solo-b, got: %v", names)
+	}
+}
+
+func TestAggStatsForWindow_StandalonePods(t *testing.T) {
+	s, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	ctx := context.Background()
+
+	// Two standalone pods (no owner) — must not collapse into one row.
+	p1, err := s.UpsertPodMetadata(ctx, PodMeta{
+		Namespace: "default", PodName: "solo-a", ContainerName: "app",
+		CPURequestM: 100, CPULimitM: 200, MemRequestB: 1024, MemLimitB: 2048,
+		FirstSeenAt: 1000, LastSeenAt: 1000,
+	})
+	if err != nil {
+		t.Fatalf("upsert solo-a failed: %v", err)
+	}
+	p2, err := s.UpsertPodMetadata(ctx, PodMeta{
+		Namespace: "default", PodName: "solo-b", ContainerName: "app",
+		CPURequestM: 100, CPULimitM: 200, MemRequestB: 1024, MemLimitB: 2048,
+		FirstSeenAt: 1000, LastSeenAt: 1000,
+	})
+	if err != nil {
+		t.Fatalf("upsert solo-b failed: %v", err)
+	}
+
+	bucket := AggBucket{Resolution: "1h", BucketStart: 3600, SampleCount: 10, CPUAvgM: 50, CPUMaxM: 80}
+	bucket.PodID = p1
+	if err := s.UpsertAggBucket(ctx, bucket); err != nil {
+		t.Fatalf("upsert agg solo-a failed: %v", err)
+	}
+	bucket.PodID = p2
+	if err := s.UpsertAggBucket(ctx, bucket); err != nil {
+		t.Fatalf("upsert agg solo-b failed: %v", err)
+	}
+
+	stats, err := s.AggStatsForWindow(ctx, "1h", 0)
+	if err != nil {
+		t.Fatalf("AggStatsForWindow failed: %v", err)
+	}
+
+	if len(stats) != 2 {
+		t.Errorf("expected 2 stats rows, got %d: %+v", len(stats), stats)
+	}
+
+	names := make(map[string]bool)
+	for _, st := range stats {
+		names[st.OwnerName] = true
+	}
+	if !names["solo-a"] || !names["solo-b"] {
+		t.Errorf("expected both solo-a and solo-b, got: %v", names)
+	}
+}
+
 func TestUpsertAggBucket(t *testing.T) {
 	s, err := Open(":memory:")
 	if err != nil {
