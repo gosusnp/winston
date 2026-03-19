@@ -20,6 +20,8 @@
             --ghost-color: #9f5fff;
             --safe-color: #5fff8f;
             --link-color: #5fafff;
+            --no-limits-color: #ff7f3f;
+            --no-requests-color: #5fbfff;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -59,6 +61,8 @@
         .badge.danger { border-color: var(--danger-color); color: var(--danger-color); }
         .badge.warning { border-color: var(--warning-color); color: var(--warning-color); }
         .badge.ghost { border-color: var(--ghost-color); color: var(--ghost-color); }
+        .badge.no-limits { border-color: var(--no-limits-color); color: var(--no-limits-color); }
+        .badge.no-requests { border-color: var(--no-requests-color); color: var(--no-requests-color); }
 
         section {
             margin-bottom: 3rem;
@@ -152,6 +156,8 @@
             <div id="badge-danger" class="badge">DANGER ZONE: -</div>
             <div id="badge-warning" class="badge">OVER-PROVISIONED: -</div>
             <div id="badge-ghost" class="badge">GHOST LIMIT: -</div>
+            <div id="badge-no-limits" class="badge">NO LIMITS: -</div>
+            <div id="badge-no-requests" class="badge">NO REQUESTS: -</div>
         </div>
 
         <section id="exuberant-section">
@@ -218,7 +224,7 @@
 
             // 1. Summary Badges
             const workloads = exuberant.workloads || [];
-            const counts = { danger_zone: 0, over_provisioned: 0, ghost_limit: 0 };
+            const counts = { danger_zone: 0, over_provisioned: 0, ghost_limit: 0, no_limits: 0, no_requests: 0 };
             workloads.forEach(w => {
                 w.profiles.forEach(p => { if (counts.hasOwnProperty(p)) counts[p]++; });
             });
@@ -235,6 +241,14 @@
             bGhost.textContent = `GHOST LIMIT: ${counts.ghost_limit}`;
             bGhost.className = counts.ghost_limit > 0 ? 'badge ghost' : 'badge';
 
+            const bNoLimits = document.getElementById('badge-no-limits');
+            bNoLimits.textContent = `NO LIMITS: ${counts.no_limits}`;
+            bNoLimits.className = counts.no_limits > 0 ? 'badge no-limits' : 'badge';
+
+            const bNoRequests = document.getElementById('badge-no-requests');
+            bNoRequests.textContent = `NO REQUESTS: ${counts.no_requests}`;
+            bNoRequests.className = counts.no_requests > 0 ? 'badge no-requests' : 'badge';
+
             // 2. Exuberant Content
             const exuberantContent = document.getElementById('exuberant-content');
             if (workloads.length === 0) {
@@ -245,7 +259,9 @@
                 const profiles = [
                     { id: 'danger_zone', title: 'Danger Zone', desc: 'Sustained usage ≥ 90% of limit. Throttling or OOMKill risk.' },
                     { id: 'over_provisioned', title: 'Over-Provisioned', desc: 'p95 usage < 20% of request. Safe to reduce requests.' },
-                    { id: 'ghost_limit', title: 'Ghost Limit', desc: 'Absolute peak < 10% of limit. Limit is functionally unconstrained.' }
+                    { id: 'ghost_limit', title: 'Ghost Limit', desc: 'Absolute peak < 10% of limit. Limit is functionally unconstrained.' },
+                    { id: 'no_limits', title: 'No Limits', desc: 'No CPU or memory limit set. Pod can consume unbounded resources.' },
+                    { id: 'no_requests', title: 'No Requests', desc: 'No CPU or memory request set. Pod gets BestEffort QoS; first evicted under pressure.' }
                 ];
 
                 profiles.forEach(p => {
@@ -265,6 +281,8 @@
                                         ${p.id === 'danger_zone' ? '<th>CPU p90</th><th>CPU Limit</th><th>Mem p90</th><th>Mem Limit</th>' : ''}
                                         ${p.id === 'over_provisioned' ? '<th>CPU p95</th><th>CPU Request</th><th>Mem p95</th><th>Mem Request</th>' : ''}
                                         ${p.id === 'ghost_limit' ? '<th>CPU Max</th><th>CPU Limit</th><th>Mem Max</th><th>Mem Limit</th>' : ''}
+                                        ${p.id === 'no_limits' ? '<th>CPU Request</th><th>Mem Request</th>' : ''}
+                                        ${p.id === 'no_requests' ? '<th>CPU Limit</th><th>Mem Limit</th>' : ''}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -282,6 +300,10 @@
                                 tableHtml += `<td>${formatCPU(m.cpu.p95_m)}</td><td>${formatCPU(m.current.cpu_request_m)}</td><td>${formatMem(m.mem.p95_b)}</td><td>${formatMem(m.current.mem_request_b)}</td>`;
                             } else if (p.id === 'ghost_limit') {
                                 tableHtml += `<td>${formatCPU(m.cpu.max_m)}</td><td>${formatCPU(m.current.cpu_limit_m)}</td><td>${formatMem(m.mem.max_b)}</td><td>${formatMem(m.current.mem_limit_b)}</td>`;
+                            } else if (p.id === 'no_limits') {
+                                tableHtml += `<td>${formatCPU(m.current.cpu_request_m)}</td><td>${formatMem(m.current.mem_request_b)}</td>`;
+                            } else if (p.id === 'no_requests') {
+                                tableHtml += `<td>${formatCPU(m.current.cpu_limit_m)}</td><td>${formatMem(m.current.mem_limit_b)}</td>`;
                             }
                             tableHtml += `</tr>`;
                         });
