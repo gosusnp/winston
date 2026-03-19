@@ -23,7 +23,7 @@ spec:
         fsGroup: 65532
       containers:
         - name: winston
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: WINSTON_DB_PATH

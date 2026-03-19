@@ -3,7 +3,7 @@
 
 image:
   repository: ghcr.io/gosusnp/winston
-  tag: latest
+  tag: ""  # defaults to .Chart.AppVersion
   pullPolicy: IfNotPresent
 
 collector:

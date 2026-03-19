@@ -87,6 +87,20 @@ tests:
           path: spec.template.spec.serviceAccountName
           value: RELEASE-NAME-winston
 
+  - it: defaults image tag to appVersion
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "ghcr.io/gosusnp/winston:0\\.1\\.4$"
+
+  - it: uses explicit image tag when set
+    set:
+      image.tag: v1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/gosusnp/winston:v1.2.3"
+
   - it: sets resource requests and limits
     asserts:
       - equal:
