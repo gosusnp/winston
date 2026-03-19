@@ -143,6 +143,34 @@ func TestAnalyze(t *testing.T) {
 		assert.ElementsMatch(t, []Profile{NoLimits, NoRequests}, results[0].Profiles)
 	})
 
+	t.Run("NoLimits_HasAggStats", func(t *testing.T) {
+		// A pod with no limit but existing agg data should have CPU/Mem stats populated.
+		s, err := store.Open(":memory:")
+		require.NoError(t, err)
+		defer func() { _ = s.Close() }()
+		now := time.Now().Unix()
+
+		seed(t, s, store.PodMeta{
+			Namespace: "ns5b", PodName: "p5b", ContainerName: "c5b",
+			OwnerKind: "Deployment", OwnerName: "w5b",
+			CPULimitM: 0, // no limit
+		}, store.AggBucket{
+			Resolution: "1h", BucketStart: now, SampleCount: 42,
+			CPUAvgM: 80, CPUMaxM: 150,
+			CPUP50M: 70, CPUP75M: 90, CPUP90M: 120, CPUP95M: 140, CPUP99M: 148,
+		})
+
+		a := New(s, time.Hour)
+		results, err := a.Analyze(ctx, 7, time.Now())
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Contains(t, results[0].Profiles, NoLimits)
+		assert.Equal(t, int64(42), results[0].SampleCount)
+		assert.Equal(t, int64(80), results[0].CPU.AvgM)
+		assert.Equal(t, int64(150), results[0].CPU.MaxM)
+		assert.Equal(t, int64(120), results[0].CPU.P90M)
+	})
+
 	t.Run("NoMatch", func(t *testing.T) {
 		s, err := store.Open(":memory:")
 		require.NoError(t, err)

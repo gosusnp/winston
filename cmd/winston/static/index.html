@@ -288,8 +288,8 @@
                                         ${p.id === 'danger_zone' ? '<th>CPU p90</th><th>CPU Limit</th><th>Mem p90</th><th>Mem Limit</th>' : ''}
                                         ${p.id === 'over_provisioned' ? '<th>CPU p95</th><th>CPU Request</th><th>Mem p95</th><th>Mem Request</th>' : ''}
                                         ${p.id === 'ghost_limit' ? '<th>CPU Max</th><th>CPU Limit</th><th>Mem Max</th><th>Mem Limit</th>' : ''}
-                                        ${p.id === 'no_limits' ? '<th>CPU Request</th><th>Mem Request</th>' : ''}
-                                        ${p.id === 'no_requests' ? '<th>CPU Limit</th><th>Mem Limit</th>' : ''}
+                                                        ${p.id === 'no_limits' ? '<th>CPU Request</th><th>CPU p95</th><th>CPU Max</th><th>Mem Request</th><th>Mem p95</th><th>Mem Max</th>' : ''}
+                                        ${p.id === 'no_requests' ? '<th>CPU Limit</th><th>CPU p95</th><th>CPU Max</th><th>Mem Limit</th><th>Mem p95</th><th>Mem Max</th>' : ''}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -308,9 +308,21 @@
                             } else if (p.id === 'ghost_limit') {
                                 tableHtml += `<td>${formatCPU(m.cpu.max_m)}</td><td>${formatCPU(m.current.cpu_limit_m)}</td><td>${formatMem(m.mem.max_b)}</td><td>${formatMem(m.current.mem_limit_b)}</td>`;
                             } else if (p.id === 'no_limits') {
-                                tableHtml += `<td>${formatCPU(m.current.cpu_request_m)}</td><td>${formatMem(m.current.mem_request_b)}</td>`;
+                                const hasStats = m.sample_count > 0;
+                                tableHtml += `<td>${formatCPU(m.current.cpu_request_m)}</td>`;
+                                tableHtml += `<td>${hasStats ? formatCPU(m.cpu.p95_m) : '—'}</td>`;
+                                tableHtml += `<td>${hasStats ? formatCPU(m.cpu.max_m) : '—'}</td>`;
+                                tableHtml += `<td>${formatMem(m.current.mem_request_b)}</td>`;
+                                tableHtml += `<td>${hasStats ? formatMem(m.mem.p95_b) : '—'}</td>`;
+                                tableHtml += `<td>${hasStats ? formatMem(m.mem.max_b) : '—'}</td>`;
                             } else if (p.id === 'no_requests') {
-                                tableHtml += `<td>${formatCPU(m.current.cpu_limit_m)}</td><td>${formatMem(m.current.mem_limit_b)}</td>`;
+                                const hasStats = m.sample_count > 0;
+                                tableHtml += `<td>${formatCPU(m.current.cpu_limit_m)}</td>`;
+                                tableHtml += `<td>${hasStats ? formatCPU(m.cpu.p95_m) : '—'}</td>`;
+                                tableHtml += `<td>${hasStats ? formatCPU(m.cpu.max_m) : '—'}</td>`;
+                                tableHtml += `<td>${formatMem(m.current.mem_limit_b)}</td>`;
+                                tableHtml += `<td>${hasStats ? formatMem(m.mem.p95_b) : '—'}</td>`;
+                                tableHtml += `<td>${hasStats ? formatMem(m.mem.max_b) : '—'}</td>`;
                             }
                             tableHtml += `</tr>`;
                         });

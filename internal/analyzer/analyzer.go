@@ -79,6 +79,15 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time)
 		return nil, fmt.Errorf("getting agg stats: %w", err)
 	}
 
+	// Index all agg stats by workload key so we can populate usage stats for
+	// no_limits/no_requests pods that don't match any usage-based profile.
+	type resultKey struct{ namespace, ownerKind, ownerName, container string }
+	statsIndex := make(map[resultKey]*store.AggStats, len(stats))
+	for i := range stats {
+		s := &stats[i]
+		statsIndex[resultKey{s.Namespace, s.OwnerKind, s.OwnerName, s.ContainerName}] = s
+	}
+
 	var results []WorkloadResult
 	for _, s := range stats {
 		var profiles []Profile
@@ -161,7 +170,6 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time)
 	}
 
 	// Build an index so we can add profiles to existing agg results without duplicating.
-	type resultKey struct{ namespace, ownerKind, ownerName, container string }
 	index := make(map[resultKey]int, len(results))
 	for i, r := range results {
 		index[resultKey{r.Namespace, r.OwnerKind, r.OwnerName, r.ContainerName}] = i
@@ -184,8 +192,10 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time)
 			// Pod already has agg results — just add the profiles.
 			results[i].Profiles = append(results[i].Profiles, profiles...)
 		} else {
-			// Pod has no agg data yet — create a result with metadata only.
-			results = append(results, WorkloadResult{
+			// Pod has no usage-based profile — create a result with metadata.
+			// Populate CPU/Mem stats from agg data if available so the report
+			// shows actual consumption alongside the misconfiguration flag.
+			wr := WorkloadResult{
 				Namespace:     p.Namespace,
 				OwnerKind:     p.OwnerKind,
 				OwnerName:     p.OwnerName,
@@ -198,7 +208,31 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time)
 					MemRequestB: p.MemRequestB,
 					MemLimitB:   p.MemLimitB,
 				},
-			})
+			}
+			if agg, ok := statsIndex[key]; ok {
+				wr.SampleCount = agg.SampleCount
+				wr.CPU = CPUStats{
+					AvgM:    agg.CPUAvgM,
+					MaxM:    agg.CPUMaxM,
+					StddevM: agg.CPUSTDDevM,
+					P50M:    agg.CPUP50M,
+					P75M:    agg.CPUP75M,
+					P90M:    agg.CPUP90M,
+					P95M:    agg.CPUP95M,
+					P99M:    agg.CPUP99M,
+				}
+				wr.Mem = MemStats{
+					AvgB:    agg.MemAvgB,
+					MaxB:    agg.MemMaxB,
+					StddevB: agg.MemSTDDevB,
+					P50B:    agg.MemP50B,
+					P75B:    agg.MemP75B,
+					P90B:    agg.MemP90B,
+					P95B:    agg.MemP95B,
+					P99B:    agg.MemP99B,
+				}
+			}
+			results = append(results, wr)
 		}
 	}
 
