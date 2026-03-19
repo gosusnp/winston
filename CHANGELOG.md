@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.6](https://github.com/gosusnp/winston/compare/v0.1.5...v0.1.6) (2026-03-19)
+
+
+### Features
+
+* **ui:** more consistent coloring and add links ([2f747f2](https://github.com/gosusnp/winston/commit/2f747f2e2d12fafc795661f0bcbb2f20ef1483c6))
+
+
+### Bug Fixes
+
+* **helm:** pass the correct image version ([0fb0441](https://github.com/gosusnp/winston/commit/0fb04418c51d7d3a57256bed6e84ecfda440129c))
+
 ## [0.1.5](https://github.com/gosusnp/winston/compare/v0.1.4...v0.1.5) (2026-03-19)
 
 
