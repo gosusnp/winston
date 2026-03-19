@@ -92,14 +92,17 @@ flowchart LR
 
 **Compaction cycle (hourly goroutine):**
 
-1. Aggregates `metrics_raw` rows older than 24h into 1h buckets in `metrics_agg` → deletes raw rows.
+1. Aggregates `metrics_raw` rows in any completed 1h window into 1h buckets in `metrics_agg`. Raw rows are deleted only after the configured retention period (default 24h), so re-compaction is possible if needed.
 2. Aggregates `metrics_agg` 1h rows older than 7 days into 1d buckets → deletes 1h rows.
 3. `pod_metadata.last_seen_at` is updated at compaction time from the latest `captured_at` in the window being rolled up, not on every raw write.
 
 **Read path:**
 
 - `/stats` — queries the most recent `metrics_raw` row per container; no aggregation.
-- `/exuberant` — queries `metrics_agg` (1h resolution, rolling 7-day window) joined with `pod_metadata`; applies profile thresholds against pre-computed percentiles. Results are sorted by namespace, then waste severity. Workload-level grouping uses `owner_kind` + `owner_name`.
+- `/exuberant` — runs two queries and merges the results:
+  - `metrics_agg` (1h resolution, rolling 7-day window) for threshold-based profiles (`danger_zone`, `over_provisioned`, `ghost_limit`). A pod appears here ~1h after first collection.
+  - `pod_metadata` directly for misconfiguration profiles (`no_limits`, `no_requests`). These appear immediately after the first collection tick, with no compaction dependency.
+  - Results are sorted by namespace, then severity, then workload name. A pod can match multiple profiles simultaneously.
 
 ---
 
@@ -211,15 +214,24 @@ The 1GB PVC has headroom for years of history at Pi-cluster scale.
 
 ## 5. Exuberance Profile Queries
 
-All profiles query `metrics_agg` at `1h` resolution over a fixed 7-day lookback window. A pod can match multiple profiles simultaneously; the response includes a `profiles` array per container.
+A pod can match multiple profiles simultaneously; the response includes a `profiles` array per container.
 
-Profiles operate on pre-computed percentiles rather than raw averages, giving more meaningful signal:
+Profiles are split into two categories by data source:
+
+**Misconfiguration profiles** — sourced from `pod_metadata` directly; available immediately after the first collection tick:
 
 | Profile | Signal | Condition |
 |---|---|---|
+| **No Limits** | no CPU or memory limit set | `cpu_limit_m = 0 OR mem_limit_b = 0` — pod can consume unbounded resources; noisy-neighbor risk |
+| **No Requests** | no CPU or memory request set | `cpu_request_m = 0 OR mem_request_b = 0` — pod gets BestEffort QoS; first to be evicted under pressure |
+
+**Usage-based profiles** — sourced from `metrics_agg` at `1h` resolution over a fixed 7-day lookback window; available ~1h after first collection. Operate on pre-computed percentiles rather than raw averages:
+
+| Profile | Signal | Condition |
+|---|---|---|
+| **Danger Zone** | sustained high usage | `cpu_p90_m >= cpu_limit_m * 0.9` — 90% of the time near the limit; throttling/OOMKill risk |
 | **Over-Provisioned** | `p95_cpu` rarely used | `cpu_p95_m < cpu_request_m * 0.2` — even the 95th percentile is idle; safe to reduce request |
 | **Ghost Limit** | absolute max is negligible | `MAX(cpu_max_m) < cpu_limit_m * 0.1` — limit is set so high it is functionally infinite |
-| **Danger Zone** | sustained high usage | `cpu_p90_m >= cpu_limit_m * 0.9` — 90% of the time near the limit; throttling/OOMKill risk |
 
 Memory uses the same patterns with `mem_*` columns.
 
@@ -472,6 +484,10 @@ The UI is a single `cmd/winston/static/index.html` file bundled into the binary.
 ### Progressive compaction over pure query-time aggregation
 
 Raw rows are compacted into pre-aggregated 1h and 1d buckets rather than retained and aggregated at query time. This keeps the DB size bounded regardless of retention length (~3–12 MB at Pi-cluster scale for 30-day history) and makes `/exuberant` queries fast and constant-time regardless of how much history is stored. Percentiles (p50–p99) are computed exactly from the raw rows before deletion — no approximation needed since all source data is present at compaction time.
+
+Compaction aggregates any completed 1h window eagerly (on the next hourly tick), but delays deletion of raw rows until the configured retention period (default 24h). This means usage-based profiles appear ~1h after a pod is first seen rather than ~25h. The separation of aggregate-cutoff from delete-cutoff also makes re-compaction safe if the schema ever changes.
+
+Misconfiguration profiles (`no_limits`, `no_requests`) bypass compaction entirely — they query `pod_metadata` directly and are available from the very first collection tick.
 
 ### Normalized metadata: `pod_metadata` + metrics tables
 

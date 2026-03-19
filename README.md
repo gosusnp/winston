@@ -10,15 +10,24 @@ A single binary. An embedded SQLite database. A small Helm chart. No external de
 
 ## What it does
 
-Winston polls the Kubernetes metrics API every minute (matching the metrics server's own scrape interval), stores usage snapshots, and runs analysis against three profiles:
+Winston polls the Kubernetes metrics API every minute (matching the metrics server's own scrape interval), stores usage snapshots, and runs analysis against five profiles:
+
+**Misconfiguration** — flagged immediately after the first collection tick:
 
 | Profile | Signal | What it means |
 |---|---|---|
+| **No Limits** | No CPU or memory limit set | Pod can consume unbounded resources; noisy-neighbor risk |
+| **No Requests** | No CPU or memory request set | Pod gets BestEffort QoS and is first evicted under pressure |
+
+**Usage-based** — available ~1h after a pod is first seen:
+
+| Profile | Signal | What it means |
+|---|---|---|
+| **Danger Zone** | p90 CPU/mem ≥ 90% of limit | Throttling or OOMKill is likely |
 | **Over-Provisioned** | p95 CPU/mem < 20% of request | Squatting on resources other pods can't use |
 | **Ghost Limit** | Absolute peak < 10% of limit | Limit is set so high it's meaningless |
-| **Danger Zone** | p90 CPU/mem ≥ 90% of limit | Throttling or OOMKill is likely |
 
-Results are grouped by workload (Deployment, StatefulSet, etc.) so you see the full picture, not just individual pod noise.
+A pod can match multiple profiles at once. Results are grouped by workload (Deployment, StatefulSet, etc.) so you see the full picture, not just individual pod noise.
 
 ---
 
