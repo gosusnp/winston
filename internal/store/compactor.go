@@ -48,14 +48,20 @@ func (s *Store) Compact(ctx context.Context, now time.Time, cfg CompactionConfig
 }
 
 func (s *Store) compactRawTo1H(ctx context.Context, now time.Time, retentionH int) error {
-	cutoff := now.Add(time.Duration(-retentionH) * time.Hour).Unix()
-	rows, err := s.RawRowsOlderThan(ctx, cutoff)
+	// Aggregate any raw row in a completed 1h window, regardless of retention.
+	// This means a pod becomes visible in /exuberant ~1h after first collection.
+	currentHourBucket := now.Unix() / 3600 * 3600
+	rows, err := s.RawRowsOlderThan(ctx, currentHourBucket)
 	if err != nil {
 		return err
 	}
 	if len(rows) == 0 {
 		return nil
 	}
+
+	// Deletion still respects the configured retention so raw rows are kept for
+	// their full lifetime (useful for re-compaction if the schema ever changes).
+	deleteCutoff := now.Add(time.Duration(-retentionH) * time.Hour).Unix()
 
 	type groupKey struct {
 		podID      int64
@@ -95,7 +101,7 @@ func (s *Store) compactRawTo1H(ctx context.Context, now time.Time, retentionH in
 			}
 		}
 
-		return txs.DeleteRawRowsBefore(ctx, cutoff)
+		return txs.DeleteRawRowsBefore(ctx, deleteCutoff)
 	})
 }
 
