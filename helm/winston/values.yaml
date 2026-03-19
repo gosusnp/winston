@@ -14,6 +14,9 @@ retention:
   oneHourDays: 7    # 1h aggregates kept for this many days
   oneDayDays: 30    # 1d aggregates kept for this many days
 
+analyzer:
+  misconfigWindowSeconds: 3600  # pods not seen within this window are excluded from no_limits/no_requests; increase for infrequent cronjobs
+
 storage:
   size: 1Gi
   storageClassName: ""  # leave empty to use the cluster default

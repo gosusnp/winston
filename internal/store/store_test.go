@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestOpen(t *testing.T) {
@@ -284,9 +285,10 @@ func TestPodsWithMissingConfig_StandalonePods(t *testing.T) {
 	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
+	now := time.Now().Unix()
 
 	// Two standalone pods (no owner) with missing limits — must not collapse into one row.
-	_, err = s.UpsertPodMetadata(ctx, PodMeta{
+	idA, err := s.UpsertPodMetadata(ctx, PodMeta{
 		Namespace: "default", PodName: "solo-a", ContainerName: "app",
 		CPURequestM: 100, CPULimitM: 0, // missing limit
 		FirstSeenAt: 1000, LastSeenAt: 1000,
@@ -294,7 +296,7 @@ func TestPodsWithMissingConfig_StandalonePods(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upsert solo-a failed: %v", err)
 	}
-	_, err = s.UpsertPodMetadata(ctx, PodMeta{
+	idB, err := s.UpsertPodMetadata(ctx, PodMeta{
 		Namespace: "default", PodName: "solo-b", ContainerName: "app",
 		CPURequestM: 100, CPULimitM: 0, // missing limit
 		FirstSeenAt: 1000, LastSeenAt: 1000,
@@ -303,7 +305,15 @@ func TestPodsWithMissingConfig_StandalonePods(t *testing.T) {
 		t.Fatalf("upsert solo-b failed: %v", err)
 	}
 
-	pods, err := s.PodsWithMissingConfig(ctx)
+	// Insert recent raw metrics so both pods are considered active.
+	if err := s.InsertRawMetric(ctx, idA, now, 10, 1024); err != nil {
+		t.Fatalf("insert raw metric for solo-a failed: %v", err)
+	}
+	if err := s.InsertRawMetric(ctx, idB, now, 10, 1024); err != nil {
+		t.Fatalf("insert raw metric for solo-b failed: %v", err)
+	}
+
+	pods, err := s.PodsWithMissingConfig(ctx, now-300)
 	if err != nil {
 		t.Fatalf("PodsWithMissingConfig failed: %v", err)
 	}

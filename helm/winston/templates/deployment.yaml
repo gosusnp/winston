@@ -38,6 +38,8 @@ spec:
               value: "{{ .Values.retention.oneHourDays }}"
             - name: WINSTON_RETENTION_1D_DAYS
               value: "{{ .Values.retention.oneDayDays }}"
+            - name: WINSTON_MISCONFIG_WINDOW_S
+              value: "{{ .Values.analyzer.misconfigWindowSeconds }}"
           ports:
             - containerPort: {{ .Values.service.port }}
           volumeMounts:

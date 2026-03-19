@@ -417,21 +417,22 @@ func (s *Store) AggStatsForWindow(ctx context.Context, resolution string, since 
 }
 
 // PodsWithMissingConfig returns all pods that have no CPU/memory limit or request set,
-// along with the number of raw samples collected so far. This query hits pod_metadata
-// directly so it returns results immediately after the first collection tick.
-func (s *Store) PodsWithMissingConfig(ctx context.Context) ([]UnboundPod, error) {
+// along with the number of raw samples collected so far. Only pods with a raw metric
+// at or after `since` are returned — this filters out stale rows for terminated pods
+// (e.g. old pod instances replaced by a redeploy with a new pod name).
+func (s *Store) PodsWithMissingConfig(ctx context.Context, since int64) ([]UnboundPod, error) {
 	query := `
 		SELECT m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name,
 		       m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b,
 		       COUNT(r.pod_id) as raw_samples
 		FROM pod_metadata m
-		LEFT JOIN metrics_raw r ON r.pod_id = m.id
+		JOIN metrics_raw r ON r.pod_id = m.id AND r.captured_at >= ?
 		WHERE m.cpu_limit_m = 0 OR m.mem_limit_b = 0 OR m.cpu_request_m = 0 OR m.mem_request_b = 0
 		GROUP BY m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name,
 		         m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b
 		ORDER BY m.namespace, COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name;
 	`
-	rows, err := s.db.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query, since)
 	if err != nil {
 		return nil, fmt.Errorf("querying pods with missing config: %w", err)
 	}

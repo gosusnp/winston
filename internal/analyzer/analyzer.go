@@ -64,11 +64,12 @@ type WorkloadResult struct {
 }
 
 type Analyzer struct {
-	store *store.Store
+	store           *store.Store
+	misconfigWindow time.Duration
 }
 
-func New(s *store.Store) *Analyzer {
-	return &Analyzer{store: s}
+func New(s *store.Store, misconfigWindow time.Duration) *Analyzer {
+	return &Analyzer{store: s, misconfigWindow: misconfigWindow}
 }
 
 func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time) ([]WorkloadResult, error) {
@@ -154,7 +155,7 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time)
 	}
 
 	// Merge no_limits / no_requests from pod_metadata directly (available immediately after first collection).
-	unbound, err := a.store.PodsWithMissingConfig(ctx)
+	unbound, err := a.store.PodsWithMissingConfig(ctx, now.Add(-a.misconfigWindow).Unix())
 	if err != nil {
 		return nil, fmt.Errorf("getting pods with missing config: %w", err)
 	}

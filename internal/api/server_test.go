@@ -30,7 +30,7 @@ func TestStats_OK(t *testing.T) {
 	})
 	_ = s.InsertRawMetric(ctx, podID, time.Now().Unix(), 10, 100)
 
-	srv := New(s, analyzer.New(s), nil)
+	srv := New(s, analyzer.New(s, time.Hour), nil)
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -62,7 +62,7 @@ func TestExuberant_JSON(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	srv := New(s, analyzer.New(s), nil)
+	srv := New(s, analyzer.New(s, time.Hour), nil)
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -95,7 +95,7 @@ func TestExuberant_Empty(t *testing.T) {
 	defer func() { _ = s.Close() }()
 
 	// Analyzer with empty store
-	srv := New(s, analyzer.New(s), nil)
+	srv := New(s, analyzer.New(s, time.Hour), nil)
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -124,7 +124,7 @@ func TestExuberant_Markdown(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	srv := New(s, analyzer.New(s), nil)
+	srv := New(s, analyzer.New(s, time.Hour), nil)
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -149,7 +149,7 @@ func TestStatic_Served(t *testing.T) {
 		"index.html": &fstest.MapFile{Data: []byte("<html>test</html>")},
 	}
 
-	srv := New(s, analyzer.New(s), staticFS)
+	srv := New(s, analyzer.New(s, time.Hour), staticFS)
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 

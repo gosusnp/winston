@@ -124,7 +124,7 @@ func TestFullChain(t *testing.T) {
 	assert.NotEmpty(t, aggRows)
 
 	// 5. Analyze
-	az := analyzer.New(s)
+	az := analyzer.New(s, time.Hour)
 	results, err := az.Analyze(ctx, 7, now)
 	require.NoError(t, err)
 

@@ -23,6 +23,9 @@ func TestAnalyze(t *testing.T) {
 		agg.PodID = id
 		err = s.UpsertAggBucket(ctx, agg)
 		require.NoError(t, err)
+		// Insert a recent raw metric so PodsWithMissingConfig sees this pod as active.
+		err = s.InsertRawMetric(ctx, id, time.Now().Unix(), 10, 1024)
+		require.NoError(t, err)
 	}
 
 	t.Run("OverProvisioned", func(t *testing.T) {
@@ -40,7 +43,7 @@ func TestAnalyze(t *testing.T) {
 			CPUP95M: 100, // 10% of request (1000)
 		})
 
-		a := New(s)
+		a := New(s, time.Hour)
 		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 1)
@@ -63,7 +66,7 @@ func TestAnalyze(t *testing.T) {
 			CPUMaxM: 50, // 5% of limit (1000)
 		})
 
-		a := New(s)
+		a := New(s, time.Hour)
 		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 1)
@@ -85,7 +88,7 @@ func TestAnalyze(t *testing.T) {
 			CPUP90M: 950, // 95% of limit (1000)
 		})
 
-		a := New(s)
+		a := New(s, time.Hour)
 		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 1)
@@ -109,7 +112,7 @@ func TestAnalyze(t *testing.T) {
 			MemMaxB: 200, // GhostLimit Mem (approx 5%)
 		})
 
-		a := New(s)
+		a := New(s, time.Hour)
 		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 1)
@@ -133,7 +136,7 @@ func TestAnalyze(t *testing.T) {
 			CPUMaxM: 5,    // Would be GhostLimit if limit was set
 		})
 
-		a := New(s)
+		a := New(s, time.Hour)
 		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 1)
@@ -161,7 +164,7 @@ func TestAnalyze(t *testing.T) {
 			MemMaxB: 1024, // 50% of limit (healthy)
 		})
 
-		a := New(s)
+		a := New(s, time.Hour)
 		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Empty(t, results)
@@ -193,7 +196,7 @@ func TestAnalyze(t *testing.T) {
 			CPUP90M: 95,
 		})
 
-		a := New(s)
+		a := New(s, time.Hour)
 		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 2)
