@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.7](https://github.com/gosusnp/winston/compare/v0.1.6...v0.1.7) (2026-03-19)
+
+
+### Features
+
+* add a configurable misconfig window ([515da22](https://github.com/gosusnp/winston/commit/515da220c302cdcc6c528f3255aab25b96583e40))
+* apply active windown to aggregated stats ([9852e65](https://github.com/gosusnp/winston/commit/9852e65f628680d3a277d848a14c8e27aebc4da4))
+* unify config POD_TTL_S for TTL using both aggregate and config ([5326939](https://github.com/gosusnp/winston/commit/532693972993173a61597f91192496d7a4de514f))
+
 ## [0.1.6](https://github.com/gosusnp/winston/compare/v0.1.5...v0.1.6) (2026-03-19)
 
 
