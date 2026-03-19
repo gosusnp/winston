@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/gosusnp/winston/compare/v0.1.7...v0.1.8) (2026-03-19)
+
+
+### Features
+
+* report usage for pods with no limit or requests ([e68a254](https://github.com/gosusnp/winston/commit/e68a25495744a1da7cfeaf4364bb20d3e988e7a2))
+
 ## [0.1.7](https://github.com/gosusnp/winston/compare/v0.1.6...v0.1.7) (2026-03-19)
 
 
