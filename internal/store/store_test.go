@@ -339,6 +339,7 @@ func TestAggStatsForWindow_StandalonePods(t *testing.T) {
 	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
+	now := time.Now().Unix()
 
 	// Two standalone pods (no owner) — must not collapse into one row.
 	p1, err := s.UpsertPodMetadata(ctx, PodMeta{
@@ -368,7 +369,15 @@ func TestAggStatsForWindow_StandalonePods(t *testing.T) {
 		t.Fatalf("upsert agg solo-b failed: %v", err)
 	}
 
-	stats, err := s.AggStatsForWindow(ctx, "1h", 0)
+	// Insert recent raw metrics so both pods are considered active.
+	if err := s.InsertRawMetric(ctx, p1, now, 50, 1024); err != nil {
+		t.Fatalf("insert raw metric solo-a failed: %v", err)
+	}
+	if err := s.InsertRawMetric(ctx, p2, now, 50, 1024); err != nil {
+		t.Fatalf("insert raw metric solo-b failed: %v", err)
+	}
+
+	stats, err := s.AggStatsForWindow(ctx, "1h", 0, now-300)
 	if err != nil {
 		t.Fatalf("AggStatsForWindow failed: %v", err)
 	}
@@ -383,6 +392,67 @@ func TestAggStatsForWindow_StandalonePods(t *testing.T) {
 	}
 	if !names["solo-a"] || !names["solo-b"] {
 		t.Errorf("expected both solo-a and solo-b, got: %v", names)
+	}
+}
+
+func TestAggStatsForWindow_ExcludesInactivePods(t *testing.T) {
+	s, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	// active pod — has recent raw data.
+	active, err := s.UpsertPodMetadata(ctx, PodMeta{
+		Namespace: "default", PodName: "active", ContainerName: "app",
+		CPURequestM: 100, CPULimitM: 200, MemRequestB: 1024, MemLimitB: 2048,
+		FirstSeenAt: 1000, LastSeenAt: 1000,
+	})
+	if err != nil {
+		t.Fatalf("upsert active failed: %v", err)
+	}
+	// inactive pod — has agg data but no recent raw data.
+	inactive, err := s.UpsertPodMetadata(ctx, PodMeta{
+		Namespace: "default", PodName: "inactive", ContainerName: "app",
+		CPURequestM: 100, CPULimitM: 200, MemRequestB: 1024, MemLimitB: 2048,
+		FirstSeenAt: 1000, LastSeenAt: 1000,
+	})
+	if err != nil {
+		t.Fatalf("upsert inactive failed: %v", err)
+	}
+
+	bucket := AggBucket{Resolution: "1h", BucketStart: 3600, SampleCount: 10, CPUAvgM: 50, CPUMaxM: 80}
+	bucket.PodID = active
+	if err := s.UpsertAggBucket(ctx, bucket); err != nil {
+		t.Fatalf("upsert agg active failed: %v", err)
+	}
+	bucket.PodID = inactive
+	if err := s.UpsertAggBucket(ctx, bucket); err != nil {
+		t.Fatalf("upsert agg inactive failed: %v", err)
+	}
+
+	// Only the active pod gets a recent raw metric.
+	if err := s.InsertRawMetric(ctx, active, now, 50, 1024); err != nil {
+		t.Fatalf("insert raw metric active failed: %v", err)
+	}
+	// inactive pod has a raw metric older than the activeSince cutoff.
+	if err := s.InsertRawMetric(ctx, inactive, now-3600, 50, 1024); err != nil {
+		t.Fatalf("insert raw metric inactive failed: %v", err)
+	}
+
+	stats, err := s.AggStatsForWindow(ctx, "1h", 0, now-300)
+	if err != nil {
+		t.Fatalf("AggStatsForWindow failed: %v", err)
+	}
+
+	if len(stats) != 1 {
+		t.Errorf("expected 1 stat row, got %d: %+v", len(stats), stats)
+	}
+	if len(stats) == 1 && stats[0].OwnerName != "active" {
+		t.Errorf("expected active pod, got %q", stats[0].OwnerName)
 	}
 }
 

@@ -359,7 +359,7 @@ func (s *Store) AggRowsForWindow(ctx context.Context, resolution string, since i
 	return results, nil
 }
 
-func (s *Store) AggStatsForWindow(ctx context.Context, resolution string, since int64) ([]AggStats, error) {
+func (s *Store) AggStatsForWindow(ctx context.Context, resolution string, since int64, activeSince int64) ([]AggStats, error) {
 	query := `
 		SELECT
 			m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name,
@@ -384,10 +384,11 @@ func (s *Store) AggStatsForWindow(ctx context.Context, resolution string, since 
 		FROM metrics_agg a
 		JOIN pod_metadata m ON a.pod_id = m.id
 		WHERE a.resolution = ? AND a.bucket_start >= ?
+		  AND EXISTS (SELECT 1 FROM metrics_raw r WHERE r.pod_id = a.pod_id AND r.captured_at >= ?)
 		GROUP BY m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name, m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b
 		ORDER BY m.namespace, COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name;
 	`
-	rows, err := s.db.QueryContext(ctx, query, resolution, since)
+	rows, err := s.db.QueryContext(ctx, query, resolution, since, activeSince)
 	if err != nil {
 		return nil, fmt.Errorf("querying agg stats for window: %w", err)
 	}

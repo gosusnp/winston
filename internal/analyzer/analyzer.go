@@ -74,7 +74,7 @@ func New(s *store.Store, misconfigWindow time.Duration) *Analyzer {
 
 func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time) ([]WorkloadResult, error) {
 	since := now.AddDate(0, 0, -lookbackDays).Unix()
-	stats, err := a.store.AggStatsForWindow(ctx, "1h", since)
+	stats, err := a.store.AggStatsForWindow(ctx, "1h", since, now.Add(-a.misconfigWindow).Unix())
 	if err != nil {
 		return nil, fmt.Errorf("getting agg stats: %w", err)
 	}

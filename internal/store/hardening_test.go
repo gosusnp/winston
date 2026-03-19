@@ -87,7 +87,7 @@ func TestConcurrentReadsDuringCompaction(t *testing.T) {
 			<-start
 			for i := 0; i < 50; i++ {
 				_, _ = s.LatestRawPerContainer(ctx)
-				_, _ = s.AggStatsForWindow(ctx, "1h", now.Add(-7*24*time.Hour).Unix())
+				_, _ = s.AggStatsForWindow(ctx, "1h", now.Add(-7*24*time.Hour).Unix(), 0)
 				time.Sleep(1 * time.Millisecond)
 			}
 		}()
