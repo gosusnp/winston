@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/gosusnp/winston/compare/winston-v0.1.3...winston-v0.1.4) (2026-03-19)
+
+
+### Features
+
+* **helm:** bump appVersion to v0.1.4 ([27aeabb](https://github.com/gosusnp/winston/commit/27aeabb71ad33825609442aa04424c52baa1aedf))
+
 ## [0.1.3](https://github.com/gosusnp/winston/compare/winston-v0.1.2...winston-v0.1.3) (2026-03-18)
 
 
