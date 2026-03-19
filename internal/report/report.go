@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"time"
 
@@ -240,6 +241,62 @@ func RenderExuberantMarkdown(w io.Writer, results []analyzer.WorkloadResult, win
 		}
 	}
 
+	// No Limits
+	noLimits := filterByProfile(results, analyzer.NoLimits)
+	if len(noLimits) > 0 {
+		if _, err := fmt.Fprintf(w, "## No Limits — %d workload(s)\n", len(noLimits)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "No CPU or memory limit set. Pod can consume unbounded resources.\n\n"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "| Namespace | Workload | Container | CPU Limit | Mem Limit | CPU Max | Mem Max |\n"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "|---|---|---|---|---|---|---|\n"); err != nil {
+			return err
+		}
+		for _, r := range noLimits {
+			if _, err := fmt.Fprintf(w, "| %s | %s/%s | %s | %s | %s | %s | %s |\n",
+				r.Namespace, r.OwnerKind, r.OwnerName, r.ContainerName,
+				formatCPU(r.Current.CPULimitM), formatMem(r.Current.MemLimitB),
+				formatCPU(r.CPU.MaxM), formatMem(r.Mem.MaxB)); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintf(w, "\n"); err != nil {
+			return err
+		}
+	}
+
+	// No Requests
+	noRequests := filterByProfile(results, analyzer.NoRequests)
+	if len(noRequests) > 0 {
+		if _, err := fmt.Fprintf(w, "## No Requests — %d workload(s)\n", len(noRequests)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "No CPU or memory request set. Pod has BestEffort QoS and is first to be evicted.\n\n"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "| Namespace | Workload | Container | CPU Request | Mem Request | CPU Avg | Mem Avg |\n"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "|---|---|---|---|---|---|---|\n"); err != nil {
+			return err
+		}
+		for _, r := range noRequests {
+			if _, err := fmt.Fprintf(w, "| %s | %s/%s | %s | %s | %s | %s | %s |\n",
+				r.Namespace, r.OwnerKind, r.OwnerName, r.ContainerName,
+				formatCPU(r.Current.CPURequestM), formatMem(r.Current.MemRequestB),
+				formatCPU(r.CPU.AvgM), formatMem(r.Mem.AvgB)); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintf(w, "\n"); err != nil {
+			return err
+		}
+	}
+
 	// Ghost Limit
 	ghostLimit := filterByProfile(results, analyzer.GhostLimit)
 	if len(ghostLimit) > 0 {
@@ -274,24 +331,23 @@ func RenderExuberantMarkdown(w io.Writer, results []analyzer.WorkloadResult, win
 func filterByProfile(results []analyzer.WorkloadResult, p analyzer.Profile) []analyzer.WorkloadResult {
 	var filtered []analyzer.WorkloadResult
 	for _, r := range results {
-		for _, rp := range r.Profiles {
-			if rp == p {
-				filtered = append(filtered, r)
-				break
-			}
+		if slices.Contains(r.Profiles, p) {
+			filtered = append(filtered, r)
 		}
 	}
 	return filtered
 }
 
 func formatCPU(m int64) string {
+	if m == 0 {
+		return "none"
+	}
 	return fmt.Sprintf("%dm", m)
 }
 
 func formatMem(b int64) string {
 	if b == 0 {
-		return "0"
+		return "none"
 	}
-	// Simple / 1048576 with "Mi" suffix as requested
 	return fmt.Sprintf("%dMi", b/1048576)
 }

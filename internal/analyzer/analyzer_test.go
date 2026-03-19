@@ -136,7 +136,8 @@ func TestAnalyze(t *testing.T) {
 		a := New(s)
 		results, err := a.Analyze(ctx, 7)
 		require.NoError(t, err)
-		require.Empty(t, results)
+		require.Len(t, results, 1)
+		assert.ElementsMatch(t, []Profile{NoLimits, NoRequests}, results[0].Profiles)
 	})
 
 	t.Run("NoMatch", func(t *testing.T) {
@@ -149,11 +150,15 @@ func TestAnalyze(t *testing.T) {
 			Namespace: "ns6", PodName: "p6", ContainerName: "c6",
 			OwnerKind: "Deployment", OwnerName: "w6",
 			CPURequestM: 100, CPULimitM: 200,
+			MemRequestB: 1024, MemLimitB: 2048,
 		}, store.AggBucket{
 			Resolution: "1h", BucketStart: now, SampleCount: 1,
-			CPUP95M: 50,  // 50% of request (healthy)
-			CPUP90M: 80,  // 40% of limit (healthy)
-			CPUMaxM: 100, // 50% of limit (healthy)
+			CPUP95M: 50,   // 50% of request (healthy)
+			CPUP90M: 80,   // 40% of limit (healthy)
+			CPUMaxM: 100,  // 50% of limit (healthy)
+			MemP95B: 512,  // 50% of request (healthy)
+			MemP90B: 800,  // ~39% of limit (healthy)
+			MemMaxB: 1024, // 50% of limit (healthy)
 		})
 
 		a := New(s)

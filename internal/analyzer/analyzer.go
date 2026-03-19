@@ -18,6 +18,8 @@ const (
 	OverProvisioned Profile = "over_provisioned"
 	GhostLimit      Profile = "ghost_limit"
 	DangerZone      Profile = "danger_zone"
+	NoLimits        Profile = "no_limits"
+	NoRequests      Profile = "no_requests"
 )
 
 type CPUStats struct {
@@ -113,6 +115,16 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int) ([]WorkloadRes
 			profiles = append(profiles, GhostLimit)
 		}
 
+		// No Limits: cpu_limit_m or mem_limit_b is unset
+		if s.CPULimitM == 0 || s.MemLimitB == 0 {
+			profiles = append(profiles, NoLimits)
+		}
+
+		// No Requests: cpu_request_m or mem_request_b is unset
+		if s.CPURequestM == 0 || s.MemRequestB == 0 {
+			profiles = append(profiles, NoRequests)
+		}
+
 		if len(profiles) > 0 {
 			results = append(results, WorkloadResult{
 				Namespace:     s.Namespace,
@@ -179,12 +191,16 @@ func profileSeverity(profiles []Profile) int {
 		switch p {
 		case DangerZone:
 			s = 1
-		case OverProvisioned:
+		case NoLimits:
 			s = 2
-		case GhostLimit:
+		case NoRequests:
 			s = 3
-		default:
+		case OverProvisioned:
 			s = 4
+		case GhostLimit:
+			s = 5
+		default:
+			s = 6
 		}
 		if s < min {
 			min = s
