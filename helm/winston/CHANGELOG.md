@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.8](https://github.com/gosusnp/winston/compare/winston-v0.1.7...winston-v0.1.8) (2026-03-19)
+
+
+### Features
+
+* add a configurable misconfig window ([515da22](https://github.com/gosusnp/winston/commit/515da220c302cdcc6c528f3255aab25b96583e40))
+* **helm:** bump appVersion to v0.1.7 ([1e70bdc](https://github.com/gosusnp/winston/commit/1e70bdc7a380c8ccc62c4fca4b0e3508d61d13b0))
+* unify config POD_TTL_S for TTL using both aggregate and config ([5326939](https://github.com/gosusnp/winston/commit/532693972993173a61597f91192496d7a4de514f))
+
 ## [0.1.7](https://github.com/gosusnp/winston/compare/winston-v0.1.6...winston-v0.1.7) (2026-03-19)
 
 
