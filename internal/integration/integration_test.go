@@ -27,7 +27,10 @@ func TestFullChain(t *testing.T) {
 	defer func() { _ = s.Close() }()
 
 	now := time.Now().UTC()
-	seedStart := now.Add(-26 * time.Hour)
+	// Truncate seedStart to an hour boundary so all 26 compacted 1h buckets
+	// get exactly 60 samples. Without this, the partial first bucket skews
+	// avg(p90) below the DangerZone threshold when now falls mid-hour.
+	seedStart := now.Add(-26 * time.Hour).Truncate(time.Hour)
 
 	// 1. Seed pod_metadata
 	// Container A: OverProvisioned (CPU p95 < 20% request)
@@ -122,7 +125,7 @@ func TestFullChain(t *testing.T) {
 
 	// 5. Analyze
 	az := analyzer.New(s)
-	results, err := az.Analyze(ctx, 7)
+	results, err := az.Analyze(ctx, 7, now)
 	require.NoError(t, err)
 
 	// 6. Assert Analysis Results

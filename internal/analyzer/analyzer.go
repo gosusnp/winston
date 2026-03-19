@@ -71,8 +71,8 @@ func New(s *store.Store) *Analyzer {
 	return &Analyzer{store: s}
 }
 
-func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int) ([]WorkloadResult, error) {
-	since := time.Now().AddDate(0, 0, -lookbackDays).Unix()
+func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time) ([]WorkloadResult, error) {
+	since := now.AddDate(0, 0, -lookbackDays).Unix()
 	stats, err := a.store.AggStatsForWindow(ctx, "1h", since)
 	if err != nil {
 		return nil, fmt.Errorf("getting agg stats: %w", err)

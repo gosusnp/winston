@@ -65,7 +65,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleExuberant(w http.ResponseWriter, r *http.Request) {
 	// Lookback is fixed at 7 days as per requirements in server.go description
-	results, err := s.analyzer.Analyze(r.Context(), 7)
+	results, err := s.analyzer.Analyze(r.Context(), 7, time.Now())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error analyzing workloads: %v", err), http.StatusInternalServerError)
 		return

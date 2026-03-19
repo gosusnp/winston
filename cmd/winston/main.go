@@ -96,7 +96,7 @@ func runReport(cfg config) {
 	}()
 
 	a := analyzer.New(s)
-	results, err := a.Analyze(context.Background(), cfg.Retention1HDays)
+	results, err := a.Analyze(context.Background(), cfg.Retention1HDays, time.Now())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "analysis error: %v\n", err)
 		os.Exit(1)

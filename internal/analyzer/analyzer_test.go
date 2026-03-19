@@ -41,7 +41,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s)
-		results, err := a.Analyze(ctx, 7)
+		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Equal(t, "ns1", results[0].Namespace)
@@ -64,7 +64,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s)
-		results, err := a.Analyze(ctx, 7)
+		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Contains(t, results[0].Profiles, GhostLimit)
@@ -86,7 +86,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s)
-		results, err := a.Analyze(ctx, 7)
+		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Contains(t, results[0].Profiles, DangerZone)
@@ -110,7 +110,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s)
-		results, err := a.Analyze(ctx, 7)
+		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.ElementsMatch(t, []Profile{OverProvisioned, GhostLimit}, results[0].Profiles)
@@ -134,7 +134,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s)
-		results, err := a.Analyze(ctx, 7)
+		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.ElementsMatch(t, []Profile{NoLimits, NoRequests}, results[0].Profiles)
@@ -162,7 +162,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s)
-		results, err := a.Analyze(ctx, 7)
+		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Empty(t, results)
 	})
@@ -194,7 +194,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s)
-		results, err := a.Analyze(ctx, 7)
+		results, err := a.Analyze(ctx, 7, time.Now())
 		require.NoError(t, err)
 		require.Len(t, results, 2)
 
