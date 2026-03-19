@@ -5,11 +5,13 @@
     ".": {
       "release-type": "go",
       "initial-version": "0.1.0",
-      "exclude-paths": ["helm"]
+      "exclude-paths": ["helm"],
+      "pull-request-title-pattern": "chore: release app ${version}"
     },
     "helm/winston": {
       "release-type": "helm",
-      "initial-version": "0.1.0"
+      "initial-version": "0.1.0",
+      "pull-request-title-pattern": "chore: release chart ${version}"
     }
   }
 }
