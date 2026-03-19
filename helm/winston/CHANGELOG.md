@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/gosusnp/winston/compare/winston-v0.1.5...winston-v0.1.6) (2026-03-19)
+
+
+### Bug Fixes
+
+* **helm:** pass the correct image version ([0fb0441](https://github.com/gosusnp/winston/commit/0fb04418c51d7d3a57256bed6e84ecfda440129c))
+
 ## [0.1.5](https://github.com/gosusnp/winston/compare/winston-v0.1.4...winston-v0.1.5) (2026-03-19)
 
 
