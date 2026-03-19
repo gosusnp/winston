@@ -2,6 +2,9 @@
 build:
 	go build -ldflags '$(LDFLAGS)' -o winston ./cmd/winston
 
+build-release:
+	go build -ldflags '-s -w $(LDFLAGS)' -o winston ./cmd/winston
+
 check: lint helm-lint helm-test test test-integration
 
 ci: fmt-check license-check lint helm-lint helm-test test test-integration
