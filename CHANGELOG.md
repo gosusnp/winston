@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.5](https://github.com/gosusnp/winston/compare/v0.1.4...v0.1.5) (2026-03-19)
+
+
+### Features
+
+* add no limit and no request to the UI ([ca2f6a4](https://github.com/gosusnp/winston/commit/ca2f6a45fbe11bf5ea2614548bed6f040d50477a))
+* better grouping for the reporting ([3c35dd6](https://github.com/gosusnp/winston/commit/3c35dd6ed3c5741a6318364aee52ec4637d9c33d))
+
+
+### Bug Fixes
+
+* address group by on nullable values ([556fb8d](https://github.com/gosusnp/winston/commit/556fb8d2287692f197f19109cf836b604114ccdf))
+
 ## [0.1.4](https://github.com/gosusnp/winston/compare/v0.1.3...v0.1.4) (2026-03-19)
 
 
