@@ -7,12 +7,12 @@ image:
   pullPolicy: IfNotPresent
 
 collector:
-  intervalSeconds: 60
+  intervalSeconds: 60  # should match the metrics-server scrape interval (default 60s)
 
 retention:
-  rawHours: 24
-  oneHourDays: 7
-  oneDayDays: 30
+  rawHours: 24      # raw 1-min samples kept for this many hours
+  oneHourDays: 7    # 1h aggregates kept for this many days
+  oneDayDays: 30    # 1d aggregates kept for this many days
 
 storage:
   size: 1Gi
