@@ -115,16 +115,6 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int) ([]WorkloadRes
 			profiles = append(profiles, GhostLimit)
 		}
 
-		// No Limits: cpu_limit_m or mem_limit_b is unset
-		if s.CPULimitM == 0 || s.MemLimitB == 0 {
-			profiles = append(profiles, NoLimits)
-		}
-
-		// No Requests: cpu_request_m or mem_request_b is unset
-		if s.CPURequestM == 0 || s.MemRequestB == 0 {
-			profiles = append(profiles, NoRequests)
-		}
-
 		if len(profiles) > 0 {
 			results = append(results, WorkloadResult{
 				Namespace:     s.Namespace,
@@ -158,6 +148,51 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int) ([]WorkloadRes
 					P90B:    s.MemP90B,
 					P95B:    s.MemP95B,
 					P99B:    s.MemP99B,
+				},
+			})
+		}
+	}
+
+	// Merge no_limits / no_requests from pod_metadata directly (available immediately after first collection).
+	unbound, err := a.store.PodsWithMissingConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting pods with missing config: %w", err)
+	}
+
+	// Build an index so we can add profiles to existing agg results without duplicating.
+	type resultKey struct{ namespace, ownerKind, ownerName, container string }
+	index := make(map[resultKey]int, len(results))
+	for i, r := range results {
+		index[resultKey{r.Namespace, r.OwnerKind, r.OwnerName, r.ContainerName}] = i
+	}
+
+	for _, p := range unbound {
+		var profiles []Profile
+		if p.CPULimitM == 0 || p.MemLimitB == 0 {
+			profiles = append(profiles, NoLimits)
+		}
+		if p.CPURequestM == 0 || p.MemRequestB == 0 {
+			profiles = append(profiles, NoRequests)
+		}
+
+		key := resultKey{p.Namespace, p.OwnerKind, p.OwnerName, p.ContainerName}
+		if i, ok := index[key]; ok {
+			// Pod already has agg results — just add the profiles.
+			results[i].Profiles = append(results[i].Profiles, profiles...)
+		} else {
+			// Pod has no agg data yet — create a result with metadata only.
+			results = append(results, WorkloadResult{
+				Namespace:     p.Namespace,
+				OwnerKind:     p.OwnerKind,
+				OwnerName:     p.OwnerName,
+				ContainerName: p.ContainerName,
+				Profiles:      profiles,
+				SampleCount:   p.RawSamples,
+				Current: ResourceConfig{
+					CPURequestM: p.CPURequestM,
+					CPULimitM:   p.CPULimitM,
+					MemRequestB: p.MemRequestB,
+					MemLimitB:   p.MemLimitB,
 				},
 			})
 		}

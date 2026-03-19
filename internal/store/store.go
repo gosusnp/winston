@@ -415,3 +415,43 @@ func (s *Store) AggStatsForWindow(ctx context.Context, resolution string, since 
 	}
 	return results, nil
 }
+
+// PodsWithMissingConfig returns all pods that have no CPU/memory limit or request set,
+// along with the number of raw samples collected so far. This query hits pod_metadata
+// directly so it returns results immediately after the first collection tick.
+func (s *Store) PodsWithMissingConfig(ctx context.Context) ([]UnboundPod, error) {
+	query := `
+		SELECT m.namespace, m.owner_kind, m.owner_name, m.container_name,
+		       m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b,
+		       COUNT(r.pod_id) as raw_samples
+		FROM pod_metadata m
+		LEFT JOIN metrics_raw r ON r.pod_id = m.id
+		WHERE m.cpu_limit_m = 0 OR m.mem_limit_b = 0 OR m.cpu_request_m = 0 OR m.mem_request_b = 0
+		GROUP BY m.namespace, m.owner_kind, m.owner_name, m.container_name,
+		         m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b
+		ORDER BY m.namespace, m.owner_name, m.container_name;
+	`
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("querying pods with missing config: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []UnboundPod
+	for rows.Next() {
+		var p UnboundPod
+		err := rows.Scan(
+			&p.Namespace, &p.OwnerKind, &p.OwnerName, &p.ContainerName,
+			&p.CPURequestM, &p.CPULimitM, &p.MemRequestB, &p.MemLimitB,
+			&p.RawSamples,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scanning unbound pod row: %w", err)
+		}
+		results = append(results, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error in pods with missing config: %w", err)
+	}
+	return results, nil
+}

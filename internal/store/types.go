@@ -69,6 +69,18 @@ type AggRow struct {
 	MemLimitB     int64
 }
 
+type UnboundPod struct {
+	Namespace     string
+	OwnerKind     string
+	OwnerName     string
+	ContainerName string
+	CPURequestM   int64
+	CPULimitM     int64
+	MemRequestB   int64
+	MemLimitB     int64
+	RawSamples    int64
+}
+
 type AggStats struct {
 	Namespace     string
 	OwnerKind     string
