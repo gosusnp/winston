@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.5](https://github.com/gosusnp/winston/compare/winston-v0.1.4...winston-v0.1.5) (2026-03-19)
+
+
+### Features
+
+* **helm:** bump appVersion to 0.1.5 ([7f58404](https://github.com/gosusnp/winston/commit/7f584043475e7752520da5d900a289fb8ff23769))
+* **helm:** set cpu limit ([074a98f](https://github.com/gosusnp/winston/commit/074a98fb424dad296151b489493f80da91a97fa7))
+
+
+### Bug Fixes
+
+* **helm:** use explicit appVersion from the chart by default ([f8d3720](https://github.com/gosusnp/winston/commit/f8d372019928e573ffe1f352cfe45b9beb200059))
+
 ## [0.1.4](https://github.com/gosusnp/winston/compare/winston-v0.1.3...winston-v0.1.4) (2026-03-19)
 
 
