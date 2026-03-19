@@ -400,6 +400,9 @@ retention:
   oneHourDays: 7
   oneDayDays: 30
 
+analyzer:
+  podTTLSeconds: 3600    # pods with no raw metric within this TTL are excluded from all profiles
+
 storage:
   size: 1Gi
   storageClassName: ""      # leave empty to use the cluster default

@@ -64,17 +64,17 @@ type WorkloadResult struct {
 }
 
 type Analyzer struct {
-	store           *store.Store
-	misconfigWindow time.Duration
+	store  *store.Store
+	podTTL time.Duration
 }
 
-func New(s *store.Store, misconfigWindow time.Duration) *Analyzer {
-	return &Analyzer{store: s, misconfigWindow: misconfigWindow}
+func New(s *store.Store, podTTL time.Duration) *Analyzer {
+	return &Analyzer{store: s, podTTL: podTTL}
 }
 
 func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time) ([]WorkloadResult, error) {
 	since := now.AddDate(0, 0, -lookbackDays).Unix()
-	stats, err := a.store.AggStatsForWindow(ctx, "1h", since, now.Add(-a.misconfigWindow).Unix())
+	stats, err := a.store.AggStatsForWindow(ctx, "1h", since, now.Add(-a.podTTL).Unix())
 	if err != nil {
 		return nil, fmt.Errorf("getting agg stats: %w", err)
 	}
@@ -155,7 +155,7 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time)
 	}
 
 	// Merge no_limits / no_requests from pod_metadata directly (available immediately after first collection).
-	unbound, err := a.store.PodsWithMissingConfig(ctx, now.Add(-a.misconfigWindow).Unix())
+	unbound, err := a.store.PodsWithMissingConfig(ctx, now.Add(-a.podTTL).Unix())
 	if err != nil {
 		return nil, fmt.Errorf("getting pods with missing config: %w", err)
 	}

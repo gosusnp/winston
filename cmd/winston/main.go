@@ -30,13 +30,13 @@ import (
 var version = "dev"
 
 type config struct {
-	DBPath           string
-	Port             string
-	CollectInterval  time.Duration
-	RetentionRawH    int
-	Retention1HDays  int
-	Retention1DDays  int
-	MisconfigWindowS int
+	DBPath          string
+	Port            string
+	CollectInterval time.Duration
+	RetentionRawH   int
+	Retention1HDays int
+	Retention1DDays int
+	PodTTLS         int
 }
 
 func main() {
@@ -59,13 +59,13 @@ func main() {
 
 func loadConfig() config {
 	return config{
-		DBPath:           getEnv("WINSTON_DB_PATH", "/data/winston.db"),
-		Port:             getEnv("WINSTON_PORT", "8080"),
-		CollectInterval:  time.Duration(getEnvInt("WINSTON_COLLECT_INTERVAL", 60)) * time.Second,
-		RetentionRawH:    getEnvInt("WINSTON_RETENTION_RAW_H", 24),
-		Retention1HDays:  getEnvInt("WINSTON_RETENTION_1H_DAYS", 7),
-		Retention1DDays:  getEnvInt("WINSTON_RETENTION_1D_DAYS", 30),
-		MisconfigWindowS: getEnvInt("WINSTON_MISCONFIG_WINDOW_S", 3600),
+		DBPath:          getEnv("WINSTON_DB_PATH", "/data/winston.db"),
+		Port:            getEnv("WINSTON_PORT", "8080"),
+		CollectInterval: time.Duration(getEnvInt("WINSTON_COLLECT_INTERVAL", 60)) * time.Second,
+		RetentionRawH:   getEnvInt("WINSTON_RETENTION_RAW_H", 24),
+		Retention1HDays: getEnvInt("WINSTON_RETENTION_1H_DAYS", 7),
+		Retention1DDays: getEnvInt("WINSTON_RETENTION_1D_DAYS", 30),
+		PodTTLS:         getEnvInt("WINSTON_POD_TTL_S", 3600),
 	}
 }
 
@@ -97,7 +97,7 @@ func runReport(cfg config) {
 		}
 	}()
 
-	a := analyzer.New(s, time.Duration(cfg.MisconfigWindowS)*time.Second)
+	a := analyzer.New(s, time.Duration(cfg.PodTTLS)*time.Second)
 	results, err := a.Analyze(context.Background(), cfg.Retention1HDays, time.Now())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "analysis error: %v\n", err)
@@ -183,7 +183,7 @@ func runServer(cfg config) {
 	}()
 
 	// Start API server
-	a := analyzer.New(s, time.Duration(cfg.MisconfigWindowS)*time.Second)
+	a := analyzer.New(s, time.Duration(cfg.PodTTLS)*time.Second)
 	static, err := fs.Sub(staticFiles, "static")
 	if err != nil {
 		log.Fatalf("failed to sub static FS: %v", err)

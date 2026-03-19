@@ -15,7 +15,7 @@ retention:
   oneDayDays: 30    # 1d aggregates kept for this many days
 
 analyzer:
-  misconfigWindowSeconds: 3600  # pods not seen within this window are excluded from no_limits/no_requests; increase for infrequent cronjobs
+  podTTLSeconds: 3600  # pods with no raw metric within this TTL are excluded from all profiles; increase for infrequent cronjobs
 
 storage:
   size: 1Gi

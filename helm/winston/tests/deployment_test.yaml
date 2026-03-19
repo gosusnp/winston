@@ -81,22 +81,22 @@ tests:
             name: WINSTON_RETENTION_1D_DAYS
             value: "30"
 
-  - it: sets WINSTON_MISCONFIG_WINDOW_S from default value
+  - it: sets WINSTON_POD_TTL_S from default value
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: WINSTON_MISCONFIG_WINDOW_S
+            name: WINSTON_POD_TTL_S
             value: "3600"
 
-  - it: sets WINSTON_MISCONFIG_WINDOW_S from custom value
+  - it: sets WINSTON_POD_TTL_S from custom value
     set:
-      analyzer.misconfigWindowSeconds: 7200
+      analyzer.podTTLSeconds: 7200
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: WINSTON_MISCONFIG_WINDOW_S
+            name: WINSTON_POD_TTL_S
             value: "7200"
 
   - it: uses the service account

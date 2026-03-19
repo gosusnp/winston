@@ -81,6 +81,9 @@ retention:
   oneHourDays: 7         # keep 1h buckets for this many days
   oneDayDays: 30         # keep 1d buckets for this many days
 
+analyzer:
+  podTTLSeconds: 3600    # pods with no data within this TTL are excluded from all profiles; increase for infrequent cronjobs
+
 storage:
   size: 1Gi              # PVC size; ~12MB used for 200 containers / 30 days
   storageClassName: ""   # leave empty to use the cluster default (e.g. local-path on k3s)
