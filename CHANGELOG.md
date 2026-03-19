@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.4](https://github.com/gosusnp/winston/compare/v0.1.3...v0.1.4) (2026-03-19)
+
+
+### Features
+
+* flag no limit and no request earlier ([7181d7d](https://github.com/gosusnp/winston/commit/7181d7d268648d2bb0cef40e31d6397ddcddd6f1))
+* flag pods without request or limit ([2bc348d](https://github.com/gosusnp/winston/commit/2bc348d178c1350e62bd16d7d6916bd535a0ff8c))
+* start flagging all exuberant pods after 1h of data ([0bfadfd](https://github.com/gosusnp/winston/commit/0bfadfd74de33c60ea7eb84f5f50c0bf17465300))
+
 ## [0.1.3](https://github.com/gosusnp/winston/compare/v0.1.2...v0.1.3) (2026-03-18)
 
 
