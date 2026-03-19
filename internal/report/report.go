@@ -24,6 +24,8 @@ type statsResponse struct {
 type statsContainerItem struct {
 	Pod         string `json:"pod"`
 	Container   string `json:"container"`
+	OwnerKind   string `json:"owner_kind,omitempty"`
+	OwnerName   string `json:"owner_name,omitempty"`
 	CPUM        int64  `json:"cpu_m"`
 	MemB        int64  `json:"mem_b"`
 	CPURequestM int64  `json:"cpu_request_m"`
@@ -47,6 +49,8 @@ func RenderStatsJSON(w io.Writer, rows []store.LatestRawRow) error {
 		item := statsContainerItem{
 			Pod:         row.PodName,
 			Container:   row.ContainerName,
+			OwnerKind:   row.OwnerKind,
+			OwnerName:   row.OwnerName,
 			CPUM:        row.CPUM,
 			MemB:        row.MemB,
 			CPURequestM: row.CPURequestM,

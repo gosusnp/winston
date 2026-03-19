@@ -323,38 +323,59 @@
             } else {
                 statsContent.innerHTML = '';
                 Object.keys(namespaces).sort().forEach(ns => {
+                    // Group by (owner_kind/owner_name or pod name, container)
+                    const groups = {};
+                    namespaces[ns].forEach(c => {
+                        const workload = c.owner_kind && c.owner_name
+                            ? `${c.owner_kind}/${c.owner_name}`
+                            : c.pod;
+                        const key = `${workload}\0${c.container}`;
+                        if (!groups[key]) {
+                            groups[key] = { workload, container: c.container, pods: 0, cpu_m: 0, mem_b: 0, cpu_request_m: c.cpu_request_m, cpu_limit_m: c.cpu_limit_m, mem_request_b: c.mem_request_b, mem_limit_b: c.mem_limit_b };
+                        }
+                        groups[key].pods++;
+                        groups[key].cpu_m += c.cpu_m;
+                        groups[key].mem_b += c.mem_b;
+                    });
+
+                    const rows = Object.values(groups).sort((a, b) =>
+                        a.workload < b.workload ? -1 : a.workload > b.workload ? 1 : a.container < b.container ? -1 : 1
+                    );
+
                     const details = document.createElement('details');
                     const summary = document.createElement('summary');
-                    summary.textContent = `${ns} (${namespaces[ns].length} containers)`;
+                    summary.textContent = `${ns} (${rows.length} workloads)`;
                     details.appendChild(summary);
 
                     const div = document.createElement('div');
                     div.className = 'details-content';
-                    
+
                     let tableHtml = `
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Pod</th>
+                                    <th>Workload</th>
                                     <th>Container</th>
-                                    <th>CPU Usage</th>
-                                    <th>CPU Req/Lim</th>
-                                    <th>Mem Usage</th>
-                                    <th>Mem Req/Lim</th>
+                                    <th>Pods</th>
+                                    <th>CPU Total</th>
+                                    <th>CPU Req/Lim (per pod)</th>
+                                    <th>Mem Total</th>
+                                    <th>Mem Req/Lim (per pod)</th>
                                 </tr>
                             </thead>
                             <tbody>
                     `;
 
-                    namespaces[ns].forEach(c => {
+                    rows.forEach(r => {
                         tableHtml += `
                             <tr>
-                                <td>${escapeHTML(c.pod)}</td>
-                                <td>${escapeHTML(c.container)}</td>
-                                <td>${formatCPU(c.cpu_m)}</td>
-                                <td>${formatCPU(c.cpu_request_m)} / ${formatCPU(c.cpu_limit_m)}</td>
-                                <td>${formatMem(c.mem_b)}</td>
-                                <td>${formatMem(c.mem_request_b)} / ${formatMem(c.mem_limit_b)}</td>
+                                <td>${escapeHTML(r.workload)}</td>
+                                <td>${escapeHTML(r.container)}</td>
+                                <td>${r.pods}</td>
+                                <td>${formatCPU(r.cpu_m)}</td>
+                                <td>${formatCPU(r.cpu_request_m)} / ${formatCPU(r.cpu_limit_m)}</td>
+                                <td>${formatMem(r.mem_b)}</td>
+                                <td>${formatMem(r.mem_request_b)} / ${formatMem(r.mem_limit_b)}</td>
                             </tr>
                         `;
                     });
