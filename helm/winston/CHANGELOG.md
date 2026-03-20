@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/gosusnp/winston/compare/winston-v0.1.10...winston-v0.2.0) (2026-03-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* align configuration on seconds
+
+### Features
+
+* align configuration on seconds ([593f659](https://github.com/gosusnp/winston/commit/593f65929083a994fc5a93d6547c31edf59f24c4))
+* **helm:** bump appVersion to v0.2.0 ([ee0949e](https://github.com/gosusnp/winston/commit/ee0949e45abb8aff4a6a6c025d935997ff49980f))
+
 ## [0.1.10](https://github.com/gosusnp/winston/compare/winston-v0.1.9...winston-v0.1.10) (2026-03-20)
 
 
