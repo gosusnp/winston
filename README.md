@@ -1,6 +1,6 @@
 # Winston
 
-> Things got messy. The Wolf is here.
+> I am Winston Wolfe, I solve problems.
 
 Winston is a cluster-wide resource observer for k3s / Raspberry Pi clusters. It identifies pods that are wasting resources or living dangerously close to their limits — the **exuberant** ones.
 
