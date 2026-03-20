@@ -33,9 +33,9 @@ type config struct {
 	DBPath          string
 	Port            string
 	CollectInterval time.Duration
-	RetentionRawH   int
-	Retention1HDays int
-	Retention1DDays int
+	RetentionRawS   int
+	Retention1HS    int
+	Retention1DS    int
 	PodTTLS         int
 }
 
@@ -62,9 +62,9 @@ func loadConfig() config {
 		DBPath:          getEnv("WINSTON_DB_PATH", "/data/winston.db"),
 		Port:            getEnv("WINSTON_PORT", "8080"),
 		CollectInterval: time.Duration(getEnvInt("WINSTON_COLLECT_INTERVAL", 60)) * time.Second,
-		RetentionRawH:   getEnvInt("WINSTON_RETENTION_RAW_H", 24),
-		Retention1HDays: getEnvInt("WINSTON_RETENTION_1H_DAYS", 7),
-		Retention1DDays: getEnvInt("WINSTON_RETENTION_1D_DAYS", 30),
+		RetentionRawS:   getEnvInt("WINSTON_RETENTION_RAW_S", 86400),
+		Retention1HS:    getEnvInt("WINSTON_RETENTION_1H_S", 604800),
+		Retention1DS:    getEnvInt("WINSTON_RETENTION_1D_S", 2592000),
 		PodTTLS:         getEnvInt("WINSTON_POD_TTL_S", 3600),
 	}
 }
@@ -98,13 +98,14 @@ func runReport(cfg config) {
 	}()
 
 	a := analyzer.New(s, time.Duration(cfg.PodTTLS)*time.Second)
-	results, err := a.Analyze(context.Background(), cfg.Retention1HDays, time.Now())
+	lookbackDays := cfg.Retention1HS / 86400
+	results, err := a.Analyze(context.Background(), lookbackDays, time.Now())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "analysis error: %v\n", err)
 		os.Exit(1)
 	}
 
-	window := fmt.Sprintf("%dd", cfg.Retention1HDays)
+	window := fmt.Sprintf("%dd", lookbackDays)
 	if err := report.RenderExuberantMarkdown(os.Stdout, results, window, time.Now()); err != nil {
 		fmt.Fprintf(os.Stderr, "report error: %v\n", err)
 		os.Exit(1)
@@ -160,9 +161,9 @@ func runServer(cfg config) {
 
 	// Start compactor
 	compactionCfg := store.CompactionConfig{
-		RetentionRawH:   cfg.RetentionRawH,
-		Retention1HDays: cfg.Retention1HDays,
-		Retention1DDays: cfg.Retention1DDays,
+		RetentionRawS: cfg.RetentionRawS,
+		Retention1HS:  cfg.Retention1HS,
+		Retention1DS:  cfg.Retention1DS,
 	}
 	wg.Add(1)
 	go func() {

@@ -68,18 +68,18 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: WINSTON_RETENTION_RAW_H
-            value: "24"
+            name: WINSTON_RETENTION_RAW_S
+            value: "86400"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: WINSTON_RETENTION_1H_DAYS
-            value: "7"
+            name: WINSTON_RETENTION_1H_S
+            value: "604800"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: WINSTON_RETENTION_1D_DAYS
-            value: "30"
+            name: WINSTON_RETENTION_1D_S
+            value: "2592000"
 
   - it: sets WINSTON_POD_TTL_S from default value
     asserts:

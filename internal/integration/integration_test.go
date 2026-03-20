@@ -107,9 +107,9 @@ func TestFullChain(t *testing.T) {
 
 	// 3. Compact
 	cfg := store.CompactionConfig{
-		RetentionRawH:   24,
-		Retention1HDays: 7,
-		Retention1DDays: 30,
+		RetentionRawS: 86400,
+		Retention1HS:  604800,
+		Retention1DS:  2592000,
 	}
 	err = s.Compact(ctx, now, cfg)
 	require.NoError(t, err)

@@ -74,7 +74,7 @@ func TestConcurrentReadsDuringCompaction(t *testing.T) {
 		defer wg.Done()
 		<-start
 		for i := 0; i < 5; i++ {
-			_ = s.Compact(ctx, now, CompactionConfig{RetentionRawH: 1})
+			_ = s.Compact(ctx, now, CompactionConfig{RetentionRawS: 3600})
 			time.Sleep(10 * time.Millisecond)
 		}
 	}()

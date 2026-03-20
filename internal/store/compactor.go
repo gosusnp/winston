@@ -12,34 +12,34 @@ import (
 )
 
 type CompactionConfig struct {
-	RetentionRawH   int // hours to keep raw rows (default 24)
-	Retention1HDays int // days to keep 1h buckets (default 7)
-	Retention1DDays int // days to keep 1d buckets (default 30)
+	RetentionRawS int // seconds to keep raw rows (default 86400)
+	Retention1HS  int // seconds to keep 1h buckets (default 604800)
+	Retention1DS  int // seconds to keep 1d buckets (default 2592000)
 }
 
 func (s *Store) Compact(ctx context.Context, now time.Time, cfg CompactionConfig) error {
-	if cfg.RetentionRawH <= 0 {
-		cfg.RetentionRawH = 24
+	if cfg.RetentionRawS <= 0 {
+		cfg.RetentionRawS = 86400
 	}
-	if cfg.Retention1HDays <= 0 {
-		cfg.Retention1HDays = 7
+	if cfg.Retention1HS <= 0 {
+		cfg.Retention1HS = 604800
 	}
-	if cfg.Retention1DDays <= 0 {
-		cfg.Retention1DDays = 30
+	if cfg.Retention1DS <= 0 {
+		cfg.Retention1DS = 2592000
 	}
 
 	// Step 1: Raw -> 1h
-	if err := s.compactRawTo1H(ctx, now, cfg.RetentionRawH); err != nil {
+	if err := s.compactRawTo1H(ctx, now, cfg.RetentionRawS); err != nil {
 		return fmt.Errorf("compacting raw to 1h: %w", err)
 	}
 
 	// Step 2: 1h -> 1d
-	if err := s.compact1HTo1D(ctx, now, cfg.Retention1HDays); err != nil {
+	if err := s.compact1HTo1D(ctx, now, cfg.Retention1HS); err != nil {
 		return fmt.Errorf("compacting 1h to 1d: %w", err)
 	}
 
 	// Step 3: Prune old 1d rows
-	cutoff1D := now.AddDate(0, 0, -cfg.Retention1DDays).Unix()
+	cutoff1D := now.Add(-time.Duration(cfg.Retention1DS) * time.Second).Unix()
 	if err := s.DeleteAggRowsBefore(ctx, "1d", cutoff1D); err != nil {
 		return fmt.Errorf("pruning 1d rows: %w", err)
 	}
@@ -47,7 +47,7 @@ func (s *Store) Compact(ctx context.Context, now time.Time, cfg CompactionConfig
 	return nil
 }
 
-func (s *Store) compactRawTo1H(ctx context.Context, now time.Time, retentionH int) error {
+func (s *Store) compactRawTo1H(ctx context.Context, now time.Time, retentionS int) error {
 	// Aggregate any raw row in a completed 1h window, regardless of retention.
 	// This means a pod becomes visible in /exuberant ~1h after first collection.
 	currentHourBucket := now.Unix() / 3600 * 3600
@@ -61,7 +61,7 @@ func (s *Store) compactRawTo1H(ctx context.Context, now time.Time, retentionH in
 
 	// Deletion still respects the configured retention so raw rows are kept for
 	// their full lifetime (useful for re-compaction if the schema ever changes).
-	deleteCutoff := now.Add(time.Duration(-retentionH) * time.Hour).Unix()
+	deleteCutoff := now.Add(time.Duration(-retentionS) * time.Second).Unix()
 
 	type groupKey struct {
 		podID      int64
@@ -177,8 +177,8 @@ func computeAggBucket(podID int64, resolution string, bucketStart int64, rows []
 	}
 }
 
-func (s *Store) compact1HTo1D(ctx context.Context, now time.Time, retentionDays int) error {
-	cutoff := now.AddDate(0, 0, -retentionDays).Unix()
+func (s *Store) compact1HTo1D(ctx context.Context, now time.Time, retentionS int) error {
+	cutoff := now.Add(-time.Duration(retentionS) * time.Second).Unix()
 	rows, err := s.AggRowsOlderThan(ctx, "1h", cutoff)
 	if err != nil {
 		return err

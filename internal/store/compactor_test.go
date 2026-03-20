@@ -36,14 +36,13 @@ func TestCompact_RawTo1h(t *testing.T) {
 	}
 
 	cfg := CompactionConfig{
-		RetentionRawH: 1, // Keep only 1 hour of raw data
+		RetentionRawS: 3600, // Keep only 1 hour of raw data
 	}
 
 	// Compact at Hour 10. Rows in Hour 8 and Hour 9 should be compacted.
 	// Hour 8 is 2 hours old, Hour 9 is 1 hour old.
-	// Cutoff = 10 - 1 = 9. So everything before Hour 9 (i.e. Hour 8) should be compacted.
-	// Wait, the task says: "Cutoff: now - RetentionRawH hours. Fetch all raw rows where captured_at < cutoff".
-	// If now is Hour 10 and RetentionRawH is 1, cutoff is Hour 9.
+	// Cutoff = 10 - 1h = 9. So everything before Hour 9 (i.e. Hour 8) should be compacted.
+	// If now is Hour 10 and RetentionRawS is 3600, cutoff is Hour 9.
 	// Hour 8 rows (captured_at < 9) are compacted.
 	// Hour 9 rows (captured_at >= 9) are NOT compacted.
 
@@ -107,7 +106,7 @@ func TestCompact_UpdatesLastSeenAt(t *testing.T) {
 		}
 	}
 
-	if err := s.Compact(ctx, now, CompactionConfig{RetentionRawH: 1}); err != nil {
+	if err := s.Compact(ctx, now, CompactionConfig{RetentionRawS: 3600}); err != nil {
 		t.Fatalf("compact failed: %v", err)
 	}
 
@@ -148,7 +147,7 @@ func TestCompact_UpdatesLastSeenAt_1hTo1d(t *testing.T) {
 		t.Fatalf("upsert agg bucket failed: %v", err)
 	}
 
-	if err := s.Compact(ctx, now, CompactionConfig{Retention1HDays: 7}); err != nil {
+	if err := s.Compact(ctx, now, CompactionConfig{Retention1HS: 604800}); err != nil {
 		t.Fatalf("compact failed: %v", err)
 	}
 
@@ -185,7 +184,7 @@ func TestCompact_MonotonicLastSeenAt(t *testing.T) {
 		}
 	}
 
-	if err := s.Compact(ctx, now, CompactionConfig{RetentionRawH: 1}); err != nil {
+	if err := s.Compact(ctx, now, CompactionConfig{RetentionRawS: 3600}); err != nil {
 		t.Fatalf("compact failed: %v", err)
 	}
 
@@ -230,7 +229,7 @@ func TestCompact_1hTo1d(t *testing.T) {
 		}
 	}
 
-	if err := s.Compact(ctx, now, CompactionConfig{Retention1HDays: 7}); err != nil {
+	if err := s.Compact(ctx, now, CompactionConfig{Retention1HS: 604800}); err != nil {
 		t.Fatalf("compact failed: %v", err)
 	}
 
@@ -306,7 +305,7 @@ func TestCompact_PrunesOld1d(t *testing.T) {
 		t.Fatalf("upsert 1d bucket failed: %v", err)
 	}
 
-	if err := s.Compact(ctx, now, CompactionConfig{Retention1DDays: 30}); err != nil {
+	if err := s.Compact(ctx, now, CompactionConfig{Retention1DS: 2592000}); err != nil {
 		t.Fatalf("compact failed: %v", err)
 	}
 

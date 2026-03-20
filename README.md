@@ -85,9 +85,9 @@ collector:
   intervalSeconds: 60    # matches metrics.k8s.io scrape interval
 
 retention:
-  rawHours: 24           # keep raw 1-min samples for this many hours
-  oneHourDays: 7         # keep 1h buckets for this many days
-  oneDayDays: 30         # keep 1d buckets for this many days
+  rawSeconds: 86400      # keep raw 1-min samples for this many seconds (default: 24h)
+  oneHourSeconds: 604800 # keep 1h buckets for this many seconds (default: 7d)
+  oneDaySeconds: 2592000 # keep 1d buckets for this many seconds (default: 30d)
 
 analyzer:
   podTTLSeconds: 3600    # pods with no data within this TTL are excluded from all profiles; increase for infrequent cronjobs

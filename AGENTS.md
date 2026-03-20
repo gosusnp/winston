@@ -70,9 +70,9 @@ make pre-commit
 |---|---|---|
 | `WINSTON_DB_PATH` | `/data/winston.db` | SQLite file path |
 | `WINSTON_COLLECT_INTERVAL` | `60` | Collection interval in seconds (matches metrics server scrape interval) |
-| `WINSTON_RETENTION_RAW_H` | `24` | Raw data retention in hours |
-| `WINSTON_RETENTION_1H_DAYS` | `7` | 1h bucket retention in days |
-| `WINSTON_RETENTION_1D_DAYS` | `30` | 1d bucket retention in days |
+| `WINSTON_RETENTION_RAW_S` | `86400` | Raw data retention in seconds (default: 24h) |
+| `WINSTON_RETENTION_1H_S` | `604800` | 1h bucket retention in seconds (default: 7d) |
+| `WINSTON_RETENTION_1D_S` | `2592000` | 1d bucket retention in seconds (default: 30d) |
 | `WINSTON_POD_TTL_S` | `3600` | Pods with no raw metric within this TTL (seconds) are excluded from all profiles; increase for infrequent cronjobs |
 | `WINSTON_PORT` | `8080` | HTTP server port |
 | `KUBECONFIG` | — | Path to kubeconfig (in-cluster SA used if unset) |
