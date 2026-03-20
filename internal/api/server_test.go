@@ -6,6 +6,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -138,6 +139,87 @@ func TestExuberant_Markdown(t *testing.T) {
 	}
 	if !strings.Contains(res.Header.Get("Content-Type"), "text/markdown") {
 		t.Errorf("content-type: %s", res.Header.Get("Content-Type"))
+	}
+}
+
+func TestMetrics_Empty(t *testing.T) {
+	s, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	srv := New(s, analyzer.New(s, time.Hour), nil)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("status: %d", res.StatusCode)
+	}
+	if !strings.Contains(res.Header.Get("Content-Type"), "text/plain") {
+		t.Errorf("content-type: %s", res.Header.Get("Content-Type"))
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	if !strings.Contains(got, "# HELP winston_exuberant_workloads") {
+		t.Errorf("missing HELP line: %s", got)
+	}
+	if !strings.Contains(got, "# TYPE winston_exuberant_workloads gauge") {
+		t.Errorf("missing TYPE line: %s", got)
+	}
+}
+
+func TestMetrics_WithData(t *testing.T) {
+	s, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	ctx := context.Background()
+	// Pod with no limits — appears immediately via pod_metadata query.
+	podID, _ := s.UpsertPodMetadata(ctx, store.PodMeta{
+		Namespace: "prod", PodName: "pod1", ContainerName: "app",
+		OwnerKind: "Deployment", OwnerName: "my-api",
+		CPURequestM: 0, CPULimitM: 0, MemRequestB: 0, MemLimitB: 0,
+	})
+	_ = s.InsertRawMetric(ctx, podID, time.Now().Unix(), 10, 100)
+
+	srv := New(s, analyzer.New(s, time.Hour), nil)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("status: %d", res.StatusCode)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	if !strings.Contains(got, `profile="no_limits"`) {
+		t.Errorf("expected no_limits series, got:\n%s", got)
+	}
+	if !strings.Contains(got, `namespace="prod"`) {
+		t.Errorf("expected namespace=prod, got:\n%s", got)
+	}
+	if !strings.Contains(got, `name="my-api"`) {
+		t.Errorf("expected name=my-api, got:\n%s", got)
 	}
 }
 

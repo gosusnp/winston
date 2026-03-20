@@ -39,7 +39,15 @@ A pod can match multiple profiles at once. Results are grouped by workload (Depl
 ```
 GET /stats       current usage snapshot, all namespaces
 GET /exuberant   workloads matching any exuberance profile
+GET /metrics     Prometheus metrics (exuberance profile presence gauges)
 ```
+
+**Prometheus metrics** — scrape `/metrics` with Alloy, Prometheus, or any compatible agent:
+```promql
+count by (profile) (winston_exuberant_workloads)             # per profile
+count by (namespace, profile) (winston_exuberant_workloads)  # cross-cut
+```
+Each exuberant workload emits a `winston_exuberant_workloads{profile, namespace, kind, name}` gauge with value `1`. Stale series disappear automatically when a workload is no longer flagged.
 
 **Markdown report** — human-readable and agent-friendly:
 ```bash

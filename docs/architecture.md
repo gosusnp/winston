@@ -347,7 +347,33 @@ Absolute peak < 10% of limit. Limit is functionally unconstrained.
 | default | StatefulSet/pg | postgres | 12m | 2000m | 210Mi | 4096Mi |
 ```
 
-Both endpoints have no authentication — Winston is cluster-internal only (no Ingress by default).
+### `GET /metrics`
+
+Exposes exuberance profile data in [Prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/) for scraping by Prometheus, Grafana Alloy, or any compatible agent.
+
+**Metric:**
+
+```
+# HELP winston_exuberant_workloads Workloads matching an exuberance profile (1 = present).
+# TYPE winston_exuberant_workloads gauge
+winston_exuberant_workloads{profile="danger_zone",namespace="prod",kind="Deployment",name="payment-api"} 1
+winston_exuberant_workloads{profile="no_limits",namespace="default",kind="Deployment",name="my-api"} 1
+```
+
+- Value is always `1` (presence gauge). A workload absent from a profile produces no time series — stale series are handled by Prometheus staleness markers.
+- One time series per unique `(profile, namespace, kind, name)` tuple. A workload matching multiple profiles emits multiple series.
+- Same 7-day lookback window and TTL logic as `/exuberant`.
+
+**Example PromQL:**
+
+```promql
+count(winston_exuberant_workloads)                           # total exuberant workloads
+count by (profile) (winston_exuberant_workloads)             # per profile
+count by (namespace) (winston_exuberant_workloads)           # per namespace
+count by (namespace, profile) (winston_exuberant_workloads)  # cross-cut
+```
+
+All endpoints have no authentication — Winston is cluster-internal only (no Ingress by default).
 
 ---
 

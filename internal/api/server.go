@@ -14,6 +14,13 @@ import (
 	"github.com/gosusnp/winston/internal/store"
 )
 
+type metricsKey struct {
+	profile   analyzer.Profile
+	namespace string
+	kind      string
+	name      string
+}
+
 type Server struct {
 	store    *store.Store
 	analyzer *analyzer.Analyzer
@@ -33,6 +40,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /stats", s.handleStats)
 	mux.HandleFunc("GET /exuberant", s.handleExuberant)
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
 
 	// Default route for static files
 	if s.staticFS != nil {
@@ -78,5 +86,30 @@ func (s *Server) handleExuberant(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.Header().Set("Content-Type", "application/json")
 		_ = report.RenderExuberantJSON(w, results, "7d", time.Now())
+	}
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	results, err := s.analyzer.Analyze(r.Context(), 7, time.Now())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error analyzing workloads: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	_, _ = fmt.Fprintln(w, "# HELP winston_exuberant_workloads Workloads matching an exuberance profile (1 = present).")
+	_, _ = fmt.Fprintln(w, "# TYPE winston_exuberant_workloads gauge")
+
+	seen := make(map[metricsKey]struct{})
+	for _, result := range results {
+		for _, p := range result.Profiles {
+			k := metricsKey{p, result.Namespace, result.OwnerKind, result.OwnerName}
+			if _, ok := seen[k]; ok {
+				continue
+			}
+			seen[k] = struct{}{}
+			_, _ = fmt.Fprintf(w, "winston_exuberant_workloads{profile=%q,namespace=%q,kind=%q,name=%q} 1\n",
+				string(p), result.Namespace, result.OwnerKind, result.OwnerName)
+		}
 	}
 }
