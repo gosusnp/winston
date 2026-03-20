@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/gosusnp/winston/compare/v0.1.8...v0.1.9) (2026-03-20)
+
+
+### Features
+
+* expose a prometheus friendly /metric endpoint ([3470f32](https://github.com/gosusnp/winston/commit/3470f3224bb23da932b849f0b8d603b865199557))
+
 ## [0.1.8](https://github.com/gosusnp/winston/compare/v0.1.7...v0.1.8) (2026-03-19)
 
 
