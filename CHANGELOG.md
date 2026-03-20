@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/gosusnp/winston/compare/v0.1.9...v0.2.0) (2026-03-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* align configuration on seconds
+
+### Features
+
+* align configuration on seconds ([593f659](https://github.com/gosusnp/winston/commit/593f65929083a994fc5a93d6547c31edf59f24c4))
+
 ## [0.1.9](https://github.com/gosusnp/winston/compare/v0.1.8...v0.1.9) (2026-03-20)
 
 
