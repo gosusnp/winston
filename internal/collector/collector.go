@@ -140,5 +140,14 @@ func (c *Collector) resolveOwner(ctx context.Context, pod *corev1.Pod) (string, 
 		}
 	}
 
+	if kind == "Job" {
+		job, err := c.client.BatchV1().Jobs(pod.Namespace).Get(ctx, name, metav1.GetOptions{})
+		if err == nil && len(job.OwnerReferences) > 0 {
+			if job.OwnerReferences[0].Kind == "CronJob" {
+				return "CronJob", job.OwnerReferences[0].Name
+			}
+		}
+	}
+
 	return kind, name
 }

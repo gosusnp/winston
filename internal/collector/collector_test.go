@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -159,6 +160,61 @@ func TestCollect_DeploymentOwner(t *testing.T) {
 	assert.Len(t, rows, 1)
 	assert.Equal(t, "Deployment", rows[0].OwnerKind)
 	assert.Equal(t, deployName, rows[0].OwnerName)
+}
+
+func TestCollect_CronJobOwner(t *testing.T) {
+	s, err := store.Open(":memory:")
+	require.NoError(t, err)
+	defer func() { _ = s.Close() }()
+
+	ctx := context.Background()
+	ns := "default"
+	podName := "my-cronjob-28582847-xkqzp"
+	jobName := "my-cronjob-28582847"
+	cronJobName := "my-cronjob"
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: ns,
+			OwnerReferences: []metav1.OwnerReference{
+				{Kind: "Job", Name: jobName},
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "app"}},
+		},
+	}
+
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jobName,
+			Namespace: ns,
+			OwnerReferences: []metav1.OwnerReference{
+				{Kind: "CronJob", Name: cronJobName},
+			},
+		},
+	}
+
+	pm := &v1beta1.PodMetrics{
+		ObjectMeta: metav1.ObjectMeta{Name: podName, Namespace: ns},
+		Containers: []v1beta1.ContainerMetrics{{Name: "app"}},
+	}
+
+	client := fake.NewSimpleClientset(pod, job)       //nolint:staticcheck
+	metricsClient := metricsfake.NewSimpleClientset() //nolint:staticcheck
+	metricsClient.PrependReactor("list", "pods", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, &v1beta1.PodMetricsList{Items: []v1beta1.PodMetrics{*pm}}, nil
+	})
+
+	c := New(client, metricsClient, s, 1*time.Second)
+	c.collect(ctx)
+
+	rows, err := s.LatestRawPerContainer(ctx)
+	require.NoError(t, err)
+	assert.Len(t, rows, 1)
+	assert.Equal(t, "CronJob", rows[0].OwnerKind)
+	assert.Equal(t, cronJobName, rows[0].OwnerName)
 }
 
 func TestCollect_DirectOwner(t *testing.T) {
