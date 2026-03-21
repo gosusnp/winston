@@ -331,6 +331,96 @@ func TestPodsWithMissingConfig_StandalonePods(t *testing.T) {
 	}
 }
 
+func TestPodsWithMissingConfig_SupersededByRollingDeploy(t *testing.T) {
+	s, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	// Old pod: Deployment/my-api, no limits, terminated (last metric 2 ticks ago).
+	oldID, err := s.UpsertPodMetadata(ctx, PodMeta{
+		Namespace: "default", PodName: "my-api-abc", ContainerName: "app",
+		OwnerKind: "Deployment", OwnerName: "my-api",
+		CPURequestM: 100, CPULimitM: 0,
+		MemRequestB: 1024, MemLimitB: 0,
+		FirstSeenAt: now - 200, LastSeenAt: now - 200,
+	})
+	if err != nil {
+		t.Fatalf("upsert old pod failed: %v", err)
+	}
+	if err := s.InsertRawMetric(ctx, oldID, now-120, 10, 1024); err != nil {
+		t.Fatalf("insert raw metric for old pod failed: %v", err)
+	}
+
+	// New pod: same Deployment, limits now set, active (last metric just now).
+	newID, err := s.UpsertPodMetadata(ctx, PodMeta{
+		Namespace: "default", PodName: "my-api-def", ContainerName: "app",
+		OwnerKind: "Deployment", OwnerName: "my-api",
+		CPURequestM: 100, CPULimitM: 500,
+		MemRequestB: 1024, MemLimitB: 2048,
+		FirstSeenAt: now - 30, LastSeenAt: now - 30,
+	})
+	if err != nil {
+		t.Fatalf("upsert new pod failed: %v", err)
+	}
+	if err := s.InsertRawMetric(ctx, newID, now, 10, 1024); err != nil {
+		t.Fatalf("insert raw metric for new pod failed: %v", err)
+	}
+
+	// Old pod is within TTL but superseded — should not appear.
+	pods, err := s.PodsWithMissingConfig(ctx, now-300)
+	if err != nil {
+		t.Fatalf("PodsWithMissingConfig failed: %v", err)
+	}
+	if len(pods) != 0 {
+		t.Errorf("expected 0 pods (old pod superseded by new pod with limits), got %d: %+v", len(pods), pods)
+	}
+
+	// Now add a second Deployment whose new pod is also missing limits — it should still appear.
+	oldID2, err := s.UpsertPodMetadata(ctx, PodMeta{
+		Namespace: "default", PodName: "other-abc", ContainerName: "app",
+		OwnerKind: "Deployment", OwnerName: "other",
+		CPURequestM: 100, CPULimitM: 0,
+		MemRequestB: 1024, MemLimitB: 0,
+		FirstSeenAt: now - 200, LastSeenAt: now - 200,
+	})
+	if err != nil {
+		t.Fatalf("upsert other old pod failed: %v", err)
+	}
+	if err := s.InsertRawMetric(ctx, oldID2, now-120, 10, 1024); err != nil {
+		t.Fatalf("insert raw metric for other old pod failed: %v", err)
+	}
+	newID2, err := s.UpsertPodMetadata(ctx, PodMeta{
+		Namespace: "default", PodName: "other-def", ContainerName: "app",
+		OwnerKind: "Deployment", OwnerName: "other",
+		CPURequestM: 100, CPULimitM: 0, // still no limits on new pod
+		MemRequestB: 1024, MemLimitB: 0,
+		FirstSeenAt: now - 30, LastSeenAt: now - 30,
+	})
+	if err != nil {
+		t.Fatalf("upsert other new pod failed: %v", err)
+	}
+	if err := s.InsertRawMetric(ctx, newID2, now, 10, 1024); err != nil {
+		t.Fatalf("insert raw metric for other new pod failed: %v", err)
+	}
+
+	pods, err = s.PodsWithMissingConfig(ctx, now-300)
+	if err != nil {
+		t.Fatalf("PodsWithMissingConfig failed: %v", err)
+	}
+	// Only the new "other" pod should appear (old is superseded, new still has no limits).
+	if len(pods) != 1 {
+		t.Errorf("expected 1 pod (new 'other' pod still missing limits), got %d: %+v", len(pods), pods)
+	}
+	if len(pods) == 1 && pods[0].OwnerName != "other" {
+		t.Errorf("expected OwnerName=other, got %q", pods[0].OwnerName)
+	}
+}
+
 func TestAggStatsForWindow_StandalonePods(t *testing.T) {
 	s, err := Open(":memory:")
 	if err != nil {

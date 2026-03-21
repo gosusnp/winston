@@ -428,12 +428,26 @@ func (s *Store) PodsWithMissingConfig(ctx context.Context, since int64) ([]Unbou
 		       COUNT(r.pod_id) as raw_samples
 		FROM pod_metadata m
 		JOIN metrics_raw r ON r.pod_id = m.id AND r.captured_at >= ?
-		WHERE m.cpu_limit_m = 0 OR m.mem_limit_b = 0 OR m.cpu_request_m = 0 OR m.mem_request_b = 0
+		WHERE (m.cpu_limit_m = 0 OR m.mem_limit_b = 0 OR m.cpu_request_m = 0 OR m.mem_request_b = 0)
+		  AND (
+		    m.owner_name = ''
+		    OR NOT EXISTS (
+		        SELECT 1 FROM pod_metadata m2
+		        JOIN metrics_raw r2 ON r2.pod_id = m2.id AND r2.captured_at >= ?
+		        WHERE m2.namespace = m.namespace
+		          AND m2.owner_kind = m.owner_kind
+		          AND m2.owner_name = m.owner_name
+		          AND m2.container_name = m.container_name
+		          AND m2.id != m.id
+		          AND (SELECT MAX(r3.captured_at) FROM metrics_raw r3 WHERE r3.pod_id = m2.id)
+		            > (SELECT MAX(r3.captured_at) FROM metrics_raw r3 WHERE r3.pod_id = m.id)
+		    )
+		  )
 		GROUP BY m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name,
 		         m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b
 		ORDER BY m.namespace, COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name;
 	`
-	rows, err := s.db.QueryContext(ctx, query, since)
+	rows, err := s.db.QueryContext(ctx, query, since, since)
 	if err != nil {
 		return nil, fmt.Errorf("querying pods with missing config: %w", err)
 	}
