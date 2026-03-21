@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.1](https://github.com/gosusnp/winston/compare/winston-v0.2.0...winston-v0.2.1) (2026-03-21)
+
+
+### Features
+
+* **helm:** bump appVersion to v0.2.1 ([19aa654](https://github.com/gosusnp/winston/commit/19aa654fa179d6c22620df6df664a995f72bb59f))
+* improve workload name detection ([d787c0b](https://github.com/gosusnp/winston/commit/d787c0b2079ef962c6fd9e01150321ae94b8f000))
+
+
+### Bug Fixes
+
+* drop unused permissions ([3613e01](https://github.com/gosusnp/winston/commit/3613e0182a0dd9e4c9dd39771e24c0bc43da85a9))
+
 ## [0.2.0](https://github.com/gosusnp/winston/compare/winston-v0.1.10...winston-v0.2.0) (2026-03-20)
 
 
