@@ -7,7 +7,7 @@ templates:
   - clusterrolebinding.yaml
   - serviceaccount.yaml
 tests:
-  - it: clusterrole allows get/list/watch pods
+  - it: clusterrole allows get/list pods
     template: clusterrole.yaml
     asserts:
       - contains:
@@ -15,9 +15,9 @@ tests:
           content:
             apiGroups: [""]
             resources: ["pods"]
-            verbs: ["get", "list", "watch"]
+            verbs: ["get", "list"]
 
-  - it: clusterrole allows get/list on metrics pods
+  - it: clusterrole allows list on metrics pods
     template: clusterrole.yaml
     asserts:
       - contains:
@@ -25,7 +25,7 @@ tests:
           content:
             apiGroups: ["metrics.k8s.io"]
             resources: ["pods"]
-            verbs: ["get", "list"]
+            verbs: ["list"]
 
   - it: clusterrolebinding references the clusterrole
     template: clusterrolebinding.yaml

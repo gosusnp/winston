@@ -8,7 +8,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list"]
   - apiGroups: ["apps"]
     resources: ["replicasets"]
     verbs: ["get"]
@@ -17,4 +17,4 @@ rules:
     verbs: ["get"]
   - apiGroups: ["metrics.k8s.io"]
     resources: ["pods"]
-    verbs: ["get", "list"]
+    verbs: ["list"]
