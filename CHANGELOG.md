@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/gosusnp/winston/compare/v0.2.0...v0.2.1) (2026-03-21)
+
+
+### Features
+
+* age out pods faster when a new config is detected ([5387ef8](https://github.com/gosusnp/winston/commit/5387ef82b80b31a44057da5e5a8b11cc2acf633a))
+* improve workload name detection ([d787c0b](https://github.com/gosusnp/winston/commit/d787c0b2079ef962c6fd9e01150321ae94b8f000))
+
 ## [0.2.0](https://github.com/gosusnp/winston/compare/v0.1.9...v0.2.0) (2026-03-20)
 
 
