@@ -125,7 +125,7 @@ func TestFullChain(t *testing.T) {
 
 	// 5. Analyze
 	az := analyzer.New(s, time.Hour)
-	results, err := az.Analyze(ctx, 7, now)
+	results, err := az.Analyze(ctx, 7, now, analyzer.Thresholds{})
 	require.NoError(t, err)
 
 	// 6. Assert Analysis Results
@@ -162,7 +162,7 @@ func TestFullChain(t *testing.T) {
 	assert.Less(t, dangerIdx, overIdx, "DangerZone should be sorted before OverProvisioned")
 
 	// 7. API Tests
-	srv := api.New(s, az, nil)
+	srv := api.New(s, az, nil, analyzer.Thresholds{})
 	handler := srv.Handler()
 
 	// Test /exuberant (JSON)

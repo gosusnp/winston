@@ -16,6 +16,12 @@ retention:
 
 analyzer:
   podTTLSeconds: 3600  # pods with no raw metric within this TTL are excluded from all profiles; increase for infrequent cronjobs
+  overProvisioned:
+    minCPUMillis: 0    # skip over_provisioned if cpu_request < this (e.g. 100 for 100m)
+    minMemBytes: 0     # skip over_provisioned if mem_request < this (e.g. 33554432 for 32Mi)
+  ghostLimit:
+    minCPUMillis: 0    # skip ghost_limit if cpu_limit < this (e.g. 100 for 100m)
+    minMemBytes: 0     # skip ghost_limit if mem_limit < this (e.g. 67108864 for 64Mi)
 
 storage:
   size: 1Gi

@@ -40,6 +40,14 @@ spec:
               value: "{{ .Values.retention.oneDaySeconds | int }}"
             - name: WINSTON_POD_TTL_S
               value: "{{ .Values.analyzer.podTTLSeconds }}"
+            - name: WINSTON_OVER_PROVISIONED_MIN_CPU_M
+              value: "{{ .Values.analyzer.overProvisioned.minCPUMillis | int }}"
+            - name: WINSTON_OVER_PROVISIONED_MIN_MEM_B
+              value: "{{ .Values.analyzer.overProvisioned.minMemBytes | int }}"
+            - name: WINSTON_GHOST_LIMIT_MIN_CPU_M
+              value: "{{ .Values.analyzer.ghostLimit.minCPUMillis | int }}"
+            - name: WINSTON_GHOST_LIMIT_MIN_MEM_B
+              value: "{{ .Values.analyzer.ghostLimit.minMemBytes | int }}"
           ports:
             - containerPort: {{ .Values.service.port }}
           volumeMounts:

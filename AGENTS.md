@@ -74,5 +74,9 @@ make pre-commit
 | `WINSTON_RETENTION_1H_S` | `604800` | 1h bucket retention in seconds (default: 7d) |
 | `WINSTON_RETENTION_1D_S` | `2592000` | 1d bucket retention in seconds (default: 30d) |
 | `WINSTON_POD_TTL_S` | `3600` | Pods with no raw metric within this TTL (seconds) are excluded from all profiles; increase for infrequent cronjobs |
+| `WINSTON_OVER_PROVISIONED_MIN_CPU_M` | `0` | Skip `over_provisioned` if `cpu_request` is below this (milliCPU); 0 = no minimum |
+| `WINSTON_OVER_PROVISIONED_MIN_MEM_B` | `0` | Skip `over_provisioned` if `mem_request` is below this (bytes); 0 = no minimum |
+| `WINSTON_GHOST_LIMIT_MIN_CPU_M` | `0` | Skip `ghost_limit` if `cpu_limit` is below this (milliCPU); 0 = no minimum |
+| `WINSTON_GHOST_LIMIT_MIN_MEM_B` | `0` | Skip `ghost_limit` if `mem_limit` is below this (bytes); 0 = no minimum |
 | `WINSTON_PORT` | `8080` | HTTP server port |
 | `KUBECONFIG` | — | Path to kubeconfig (in-cluster SA used if unset) |

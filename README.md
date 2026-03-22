@@ -91,6 +91,12 @@ retention:
 
 analyzer:
   podTTLSeconds: 3600    # pods with no data within this TTL are excluded from all profiles; increase for infrequent cronjobs
+  overProvisioned:
+    minCPUMillis: 0      # skip over_provisioned if cpu_request < this; 0 = no minimum
+    minMemBytes: 0       # skip over_provisioned if mem_request < this; 0 = no minimum
+  ghostLimit:
+    minCPUMillis: 0      # skip ghost_limit if cpu_limit < this; 0 = no minimum
+    minMemBytes: 0       # skip ghost_limit if mem_limit < this; 0 = no minimum
 
 storage:
   size: 1Gi              # PVC size; ~12MB used for 200 containers / 30 days

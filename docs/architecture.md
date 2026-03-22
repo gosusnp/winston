@@ -296,6 +296,17 @@ Returns workloads matching any exuberance profile. Supports two output modes:
 - **Default / `?format=json`** — structured JSON for the UI and programmatic consumers.
 - **`?format=markdown`** — human-readable Markdown report; suitable for direct agent input or `kubectl exec` workflows.
 
+**Threshold query params** — override the configured minimums for this request only:
+
+| Param | Profile | Skips workload if… |
+|---|---|---|
+| `min_op_cpu_m` | `over_provisioned` | `cpu_request` < value (milliCPU) |
+| `min_op_mem_b` | `over_provisioned` | `mem_request` < value (bytes) |
+| `min_gl_cpu_m` | `ghost_limit` | `cpu_limit` < value (milliCPU) |
+| `min_gl_mem_b` | `ghost_limit` | `mem_limit` < value (bytes) |
+
+Example: `GET /exuberant?min_op_cpu_m=100&min_gl_mem_b=67108864` — suppress over-provisioned pods whose CPU request is below 100m, and ghost-limit pods whose memory limit is below 64Mi.
+
 **JSON response:**
 
 ```json
@@ -362,7 +373,7 @@ winston_exuberant_workloads{profile="no_limits",namespace="default",kind="Deploy
 
 - Value is always `1` (presence gauge). A workload absent from a profile produces no time series — stale series are handled by Prometheus staleness markers.
 - One time series per unique `(profile, namespace, kind, name)` tuple. A workload matching multiple profiles emits multiple series.
-- Same 7-day lookback window and TTL logic as `/exuberant`.
+- Same 7-day lookback window, TTL logic, and threshold query params (`min_op_cpu_m`, `min_op_mem_b`, `min_gl_cpu_m`, `min_gl_mem_b`) as `/exuberant`.
 
 **Example PromQL:**
 
@@ -428,6 +439,12 @@ retention:
 
 analyzer:
   podTTLSeconds: 3600    # pods with no raw metric within this TTL are excluded from all profiles
+  overProvisioned:
+    minCPUMillis: 0      # skip over_provisioned if cpu_request < this; 0 = no minimum
+    minMemBytes: 0       # skip over_provisioned if mem_request < this; 0 = no minimum
+  ghostLimit:
+    minCPUMillis: 0      # skip ghost_limit if cpu_limit < this; 0 = no minimum
+    minMemBytes: 0       # skip ghost_limit if mem_limit < this; 0 = no minimum
 
 storage:
   size: 1Gi

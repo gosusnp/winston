@@ -44,7 +44,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s, time.Hour)
-		results, err := a.Analyze(ctx, 7, time.Now())
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Equal(t, "ns1", results[0].Namespace)
@@ -67,7 +67,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s, time.Hour)
-		results, err := a.Analyze(ctx, 7, time.Now())
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Contains(t, results[0].Profiles, GhostLimit)
@@ -89,7 +89,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s, time.Hour)
-		results, err := a.Analyze(ctx, 7, time.Now())
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Contains(t, results[0].Profiles, DangerZone)
@@ -113,7 +113,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s, time.Hour)
-		results, err := a.Analyze(ctx, 7, time.Now())
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.ElementsMatch(t, []Profile{OverProvisioned, GhostLimit}, results[0].Profiles)
@@ -137,7 +137,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s, time.Hour)
-		results, err := a.Analyze(ctx, 7, time.Now())
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.ElementsMatch(t, []Profile{NoLimits, NoRequests}, results[0].Profiles)
@@ -161,7 +161,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s, time.Hour)
-		results, err := a.Analyze(ctx, 7, time.Now())
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Contains(t, results[0].Profiles, NoLimits)
@@ -193,7 +193,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s, time.Hour)
-		results, err := a.Analyze(ctx, 7, time.Now())
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{})
 		require.NoError(t, err)
 		require.Empty(t, results)
 	})
@@ -225,7 +225,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		a := New(s, time.Hour)
-		results, err := a.Analyze(ctx, 7, time.Now())
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{})
 		require.NoError(t, err)
 		require.Len(t, results, 2)
 
@@ -234,5 +234,105 @@ func TestAnalyze(t *testing.T) {
 		assert.Contains(t, results[0].Profiles, DangerZone)
 		assert.Equal(t, "w-over", results[1].OwnerName)
 		assert.Contains(t, results[1].Profiles, OverProvisioned)
+	})
+
+	t.Run("OverProvisioned_BelowMinRequest_Suppressed", func(t *testing.T) {
+		s, err := store.Open(":memory:")
+		require.NoError(t, err)
+		defer func() { _ = s.Close() }()
+		now := time.Now().Unix()
+
+		// cpu_request=50m — qualifies on ratio (p95=5m < 20% of 50m) but below min threshold (100m).
+		// All fields set to avoid triggering other profiles.
+		seed(t, s, store.PodMeta{
+			Namespace: "ns", PodName: "p", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w",
+			CPURequestM: 50, CPULimitM: 200,
+			MemRequestB: 67108864, MemLimitB: 134217728,
+		}, store.AggBucket{
+			Resolution: "1h", BucketStart: now, SampleCount: 1,
+			CPUP95M: 5, CPUMaxM: 100, // CPUMaxM=50% of limit → no ghost_limit
+			MemP95B: 33554432, MemMaxB: 67108864, // healthy mem
+		})
+
+		a := New(s, time.Hour)
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{OverProvisionedMinCPUM: 100})
+		require.NoError(t, err)
+		require.Empty(t, results)
+	})
+
+	t.Run("OverProvisioned_AboveMinRequest_Fires", func(t *testing.T) {
+		s, err := store.Open(":memory:")
+		require.NoError(t, err)
+		defer func() { _ = s.Close() }()
+		now := time.Now().Unix()
+
+		// cpu_request=500m — qualifies on ratio (p95=50m < 20% of 500m) and meets min threshold (100m).
+		seed(t, s, store.PodMeta{
+			Namespace: "ns", PodName: "p", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w",
+			CPURequestM: 500, CPULimitM: 1000,
+			MemRequestB: 67108864, MemLimitB: 134217728,
+		}, store.AggBucket{
+			Resolution: "1h", BucketStart: now, SampleCount: 1,
+			CPUP95M: 50, CPUMaxM: 500,
+			MemP95B: 33554432, MemMaxB: 67108864,
+		})
+
+		a := New(s, time.Hour)
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{OverProvisionedMinCPUM: 100})
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Contains(t, results[0].Profiles, OverProvisioned)
+	})
+
+	t.Run("GhostLimit_BelowMinLimit_Suppressed", func(t *testing.T) {
+		s, err := store.Open(":memory:")
+		require.NoError(t, err)
+		defer func() { _ = s.Close() }()
+		now := time.Now().Unix()
+
+		// cpu_limit=64m — qualifies on ratio (max=3m < 10% of 64m) but below min threshold (100m).
+		// All fields set to avoid triggering other profiles.
+		seed(t, s, store.PodMeta{
+			Namespace: "ns", PodName: "p", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w",
+			CPURequestM: 32, CPULimitM: 64,
+			MemRequestB: 67108864, MemLimitB: 134217728,
+		}, store.AggBucket{
+			Resolution: "1h", BucketStart: now, SampleCount: 1,
+			CPUP95M: 20, CPUMaxM: 3, // CPUP95M=62% of request → no over_provisioned
+			MemP95B: 33554432, MemMaxB: 67108864,
+		})
+
+		a := New(s, time.Hour)
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{GhostLimitMinCPUM: 100})
+		require.NoError(t, err)
+		require.Empty(t, results)
+	})
+
+	t.Run("GhostLimit_AboveMinLimit_Fires", func(t *testing.T) {
+		s, err := store.Open(":memory:")
+		require.NoError(t, err)
+		defer func() { _ = s.Close() }()
+		now := time.Now().Unix()
+
+		// cpu_limit=2000m — qualifies on ratio (max=50m < 10% of 2000m) and meets min threshold (100m).
+		seed(t, s, store.PodMeta{
+			Namespace: "ns", PodName: "p", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w",
+			CPURequestM: 100, CPULimitM: 2000,
+			MemRequestB: 67108864, MemLimitB: 134217728,
+		}, store.AggBucket{
+			Resolution: "1h", BucketStart: now, SampleCount: 1,
+			CPUP95M: 80, CPUMaxM: 50,
+			MemP95B: 33554432, MemMaxB: 67108864,
+		})
+
+		a := New(s, time.Hour)
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{GhostLimitMinCPUM: 100})
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Contains(t, results[0].Profiles, GhostLimit)
 	})
 }

@@ -37,6 +37,7 @@ type config struct {
 	Retention1HS    int
 	Retention1DS    int
 	PodTTLS         int
+	Thresholds      analyzer.Thresholds
 }
 
 func main() {
@@ -66,6 +67,12 @@ func loadConfig() config {
 		Retention1HS:    getEnvInt("WINSTON_RETENTION_1H_S", 604800),
 		Retention1DS:    getEnvInt("WINSTON_RETENTION_1D_S", 2592000),
 		PodTTLS:         getEnvInt("WINSTON_POD_TTL_S", 3600),
+		Thresholds: analyzer.Thresholds{
+			OverProvisionedMinCPUM: int64(getEnvInt("WINSTON_OVER_PROVISIONED_MIN_CPU_M", 0)),
+			OverProvisionedMinMemB: int64(getEnvInt("WINSTON_OVER_PROVISIONED_MIN_MEM_B", 0)),
+			GhostLimitMinCPUM:      int64(getEnvInt("WINSTON_GHOST_LIMIT_MIN_CPU_M", 0)),
+			GhostLimitMinMemB:      int64(getEnvInt("WINSTON_GHOST_LIMIT_MIN_MEM_B", 0)),
+		},
 	}
 }
 
@@ -99,7 +106,7 @@ func runReport(cfg config) {
 
 	a := analyzer.New(s, time.Duration(cfg.PodTTLS)*time.Second)
 	lookbackDays := cfg.Retention1HS / 86400
-	results, err := a.Analyze(context.Background(), lookbackDays, time.Now())
+	results, err := a.Analyze(context.Background(), lookbackDays, time.Now(), cfg.Thresholds)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "analysis error: %v\n", err)
 		os.Exit(1)
@@ -189,7 +196,7 @@ func runServer(cfg config) {
 	if err != nil {
 		log.Fatalf("failed to sub static FS: %v", err)
 	}
-	srv := api.New(s, a, static)
+	srv := api.New(s, a, static, cfg.Thresholds)
 	httpServer := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      srv.Handler(),

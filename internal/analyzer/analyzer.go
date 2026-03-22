@@ -63,6 +63,17 @@ type WorkloadResult struct {
 	Mem           MemStats
 }
 
+// Thresholds defines minimum configured values required for over_provisioned and
+// ghost_limit profiles to fire. A workload is skipped for a profile if its
+// request (over_provisioned) or limit (ghost_limit) is below the threshold.
+// Zero means no minimum — any value qualifies (default behavior).
+type Thresholds struct {
+	OverProvisionedMinCPUM int64
+	OverProvisionedMinMemB int64
+	GhostLimitMinCPUM      int64
+	GhostLimitMinMemB      int64
+}
+
 type Analyzer struct {
 	store  *store.Store
 	podTTL time.Duration
@@ -72,7 +83,7 @@ func New(s *store.Store, podTTL time.Duration) *Analyzer {
 	return &Analyzer{store: s, podTTL: podTTL}
 }
 
-func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time) ([]WorkloadResult, error) {
+func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time, thresholds Thresholds) ([]WorkloadResult, error) {
 	since := now.AddDate(0, 0, -lookbackDays).Unix()
 	stats, err := a.store.AggStatsForWindow(ctx, "1h", since, now.Add(-a.podTTL).Unix())
 	if err != nil {
@@ -103,22 +114,22 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time)
 			profiles = append(profiles, DangerZone)
 		}
 
-		// Over-Provisioned: avg(p95) < 20% of request
+		// Over-Provisioned: avg(p95) < 20% of request, gated on min request threshold.
 		isOverProvisioned := false
-		if s.CPURequestM > 0 && s.CPUP95M < int64(float64(s.CPURequestM)*0.2) {
+		if s.CPURequestM >= thresholds.OverProvisionedMinCPUM && s.CPURequestM > 0 && s.CPUP95M < int64(float64(s.CPURequestM)*0.2) {
 			isOverProvisioned = true
-		} else if s.MemRequestB > 0 && s.MemP95B < int64(float64(s.MemRequestB)*0.2) {
+		} else if s.MemRequestB >= thresholds.OverProvisionedMinMemB && s.MemRequestB > 0 && s.MemP95B < int64(float64(s.MemRequestB)*0.2) {
 			isOverProvisioned = true
 		}
 		if isOverProvisioned {
 			profiles = append(profiles, OverProvisioned)
 		}
 
-		// Ghost Limit: max(max) < 10% of limit
+		// Ghost Limit: max(max) < 10% of limit, gated on min limit threshold.
 		isGhostLimit := false
-		if s.CPULimitM > 0 && s.CPUMaxM < int64(float64(s.CPULimitM)*0.1) {
+		if s.CPULimitM >= thresholds.GhostLimitMinCPUM && s.CPULimitM > 0 && s.CPUMaxM < int64(float64(s.CPULimitM)*0.1) {
 			isGhostLimit = true
-		} else if s.MemLimitB > 0 && s.MemMaxB < int64(float64(s.MemLimitB)*0.1) {
+		} else if s.MemLimitB >= thresholds.GhostLimitMinMemB && s.MemLimitB > 0 && s.MemMaxB < int64(float64(s.MemLimitB)*0.1) {
 			isGhostLimit = true
 		}
 		if isGhostLimit {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gosusnp/winston/internal/analyzer"
@@ -22,16 +23,18 @@ type metricsKey struct {
 }
 
 type Server struct {
-	store    *store.Store
-	analyzer *analyzer.Analyzer
-	staticFS fs.FS
+	store             *store.Store
+	analyzer          *analyzer.Analyzer
+	staticFS          fs.FS
+	defaultThresholds analyzer.Thresholds
 }
 
-func New(s *store.Store, a *analyzer.Analyzer, staticFS fs.FS) *Server {
+func New(s *store.Store, a *analyzer.Analyzer, staticFS fs.FS, defaultThresholds analyzer.Thresholds) *Server {
 	return &Server{
-		store:    s,
-		analyzer: a,
-		staticFS: staticFS,
+		store:             s,
+		analyzer:          a,
+		staticFS:          staticFS,
+		defaultThresholds: defaultThresholds,
 	}
 }
 
@@ -72,8 +75,8 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleExuberant(w http.ResponseWriter, r *http.Request) {
-	// Lookback is fixed at 7 days as per requirements in server.go description
-	results, err := s.analyzer.Analyze(r.Context(), 7, time.Now())
+	thresholds := thresholdsFromRequest(r, s.defaultThresholds)
+	results, err := s.analyzer.Analyze(r.Context(), 7, time.Now(), thresholds)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error analyzing workloads: %v", err), http.StatusInternalServerError)
 		return
@@ -89,8 +92,30 @@ func (s *Server) handleExuberant(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// thresholdsFromRequest starts from the configured defaults and overrides any
+// field present in the query string (min_op_cpu_m, min_op_mem_b, min_gl_cpu_m,
+// min_gl_mem_b).
+func thresholdsFromRequest(r *http.Request, defaults analyzer.Thresholds) analyzer.Thresholds {
+	t := defaults
+	q := r.URL.Query()
+	if v, err := strconv.ParseInt(q.Get("min_op_cpu_m"), 10, 64); err == nil {
+		t.OverProvisionedMinCPUM = v
+	}
+	if v, err := strconv.ParseInt(q.Get("min_op_mem_b"), 10, 64); err == nil {
+		t.OverProvisionedMinMemB = v
+	}
+	if v, err := strconv.ParseInt(q.Get("min_gl_cpu_m"), 10, 64); err == nil {
+		t.GhostLimitMinCPUM = v
+	}
+	if v, err := strconv.ParseInt(q.Get("min_gl_mem_b"), 10, 64); err == nil {
+		t.GhostLimitMinMemB = v
+	}
+	return t
+}
+
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
-	results, err := s.analyzer.Analyze(r.Context(), 7, time.Now())
+	thresholds := thresholdsFromRequest(r, s.defaultThresholds)
+	results, err := s.analyzer.Analyze(r.Context(), 7, time.Now(), thresholds)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error analyzing workloads: %v", err), http.StatusInternalServerError)
 		return
