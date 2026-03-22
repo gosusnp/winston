@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/gosusnp/winston/compare/v0.2.1...v0.2.2) (2026-03-22)
+
+
+### Features
+
+* add resource floors for over provision and ghost limit detection ([5740faa](https://github.com/gosusnp/winston/commit/5740faa2001f420da93b88384a65d4691f14654c))
+
 ## [0.2.1](https://github.com/gosusnp/winston/compare/v0.2.0...v0.2.1) (2026-03-21)
 
 
