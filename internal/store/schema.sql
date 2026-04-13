@@ -57,3 +57,7 @@ CREATE TABLE IF NOT EXISTS metrics_agg (
 );
 
 CREATE INDEX IF NOT EXISTS idx_agg_resolution_bucket ON metrics_agg (resolution, bucket_start DESC);
+
+-- Additive migrations: ignored if column already exists (handled in store.Open).
+ALTER TABLE metrics_raw ADD COLUMN restart_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE pod_metadata ADD COLUMN last_termination_reason TEXT NOT NULL DEFAULT '';

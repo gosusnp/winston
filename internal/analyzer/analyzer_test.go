@@ -24,7 +24,7 @@ func TestAnalyze(t *testing.T) {
 		err = s.UpsertAggBucket(ctx, agg)
 		require.NoError(t, err)
 		// Insert a recent raw metric so PodsWithMissingConfig sees this pod as active.
-		err = s.InsertRawMetric(ctx, id, time.Now().Unix(), 10, 1024)
+		err = s.InsertRawMetric(ctx, id, time.Now().Unix(), 10, 1024, 0)
 		require.NoError(t, err)
 	}
 
@@ -309,6 +309,79 @@ func TestAnalyze(t *testing.T) {
 		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{GhostLimitMinCPUM: 100})
 		require.NoError(t, err)
 		require.Empty(t, results)
+	})
+
+	t.Run("HighRestarts", func(t *testing.T) {
+		s, err := store.Open(":memory:")
+		require.NoError(t, err)
+		defer func() { _ = s.Close() }()
+
+		id, err := s.UpsertPodMetadata(ctx, store.PodMeta{
+			Namespace: "ns", PodName: "p", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w",
+			CPURequestM: 100, CPULimitM: 200, MemRequestB: 1024, MemLimitB: 2048,
+		})
+		require.NoError(t, err)
+		now := time.Now().Unix()
+		require.NoError(t, s.InsertRawMetric(ctx, id, now-60, 10, 1024, 0))
+		require.NoError(t, s.InsertRawMetric(ctx, id, now, 10, 1024, 7))
+
+		a := New(s, time.Hour)
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{HighRestartThreshold: 5})
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Contains(t, results[0].Profiles, HighRestarts)
+		assert.NotContains(t, results[0].Profiles, OOMKilled)
+		assert.Equal(t, int64(7), results[0].Restarts)
+	})
+
+	t.Run("HighRestarts_OOMKilled", func(t *testing.T) {
+		s, err := store.Open(":memory:")
+		require.NoError(t, err)
+		defer func() { _ = s.Close() }()
+
+		id, err := s.UpsertPodMetadata(ctx, store.PodMeta{
+			Namespace: "ns", PodName: "p", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w",
+			CPURequestM: 100, CPULimitM: 200, MemRequestB: 1024, MemLimitB: 2048,
+			LastTerminationReason: "OOMKilled",
+		})
+		require.NoError(t, err)
+		now := time.Now().Unix()
+		require.NoError(t, s.InsertRawMetric(ctx, id, now-60, 10, 1024, 0))
+		require.NoError(t, s.InsertRawMetric(ctx, id, now, 10, 1024, 6))
+
+		a := New(s, time.Hour)
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{HighRestartThreshold: 5})
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Contains(t, results[0].Profiles, HighRestarts)
+		assert.Contains(t, results[0].Profiles, OOMKilled)
+	})
+
+	t.Run("NoLimits_And_HighRestarts_AppearsOnce", func(t *testing.T) {
+		// Regression: missing index update in unbound loop caused a pod with
+		// both no_limits and high_restarts to appear as two separate workload entries.
+		s, err := store.Open(":memory:")
+		require.NoError(t, err)
+		defer func() { _ = s.Close() }()
+
+		id, err := s.UpsertPodMetadata(ctx, store.PodMeta{
+			Namespace: "ns", PodName: "p", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w",
+			CPURequestM: 100, CPULimitM: 0, // no limit → NoLimits
+		})
+		require.NoError(t, err)
+		now := time.Now().Unix()
+		require.NoError(t, s.InsertRawMetric(ctx, id, now-60, 10, 1024, 0))
+		require.NoError(t, s.InsertRawMetric(ctx, id, now, 10, 1024, 8))
+
+		a := New(s, time.Hour)
+		results, err := a.Analyze(ctx, 7, time.Now(), Thresholds{HighRestartThreshold: 5})
+		require.NoError(t, err)
+		require.Len(t, results, 1, "pod with no_limits + high_restarts must appear as a single entry")
+		assert.Contains(t, results[0].Profiles, NoLimits)
+		assert.Contains(t, results[0].Profiles, HighRestarts)
 	})
 
 	t.Run("GhostLimit_AboveMinLimit_Fires", func(t *testing.T) {

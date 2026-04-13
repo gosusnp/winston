@@ -158,7 +158,7 @@ func TestInsertRawMetric(t *testing.T) {
 		t.Fatalf("upsert pod metadata failed: %v", err)
 	}
 
-	err = s.InsertRawMetric(ctx, podID, 1000, 50, 500)
+	err = s.InsertRawMetric(ctx, podID, 1000, 50, 500, 0)
 	if err != nil {
 		t.Fatalf("failed to insert raw metric: %v", err)
 	}
@@ -195,15 +195,15 @@ func TestLatestRawPerContainer_MultiPod(t *testing.T) {
 	}
 
 	// pod1 metrics
-	if err := s.InsertRawMetric(ctx, p1, 100, 10, 100); err != nil {
+	if err := s.InsertRawMetric(ctx, p1, 100, 10, 100, 0); err != nil {
 		t.Fatalf("insert p1 metric 1 failed: %v", err)
 	}
-	if err := s.InsertRawMetric(ctx, p1, 200, 20, 200); err != nil {
+	if err := s.InsertRawMetric(ctx, p1, 200, 20, 200, 0); err != nil {
 		t.Fatalf("insert p1 metric 2 failed: %v", err)
 	}
 
 	// pod2 metrics
-	if err := s.InsertRawMetric(ctx, p2, 150, 15, 150); err != nil {
+	if err := s.InsertRawMetric(ctx, p2, 150, 15, 150, 0); err != nil {
 		t.Fatalf("insert p2 metric failed: %v", err)
 	}
 
@@ -306,10 +306,10 @@ func TestPodsWithMissingConfig_StandalonePods(t *testing.T) {
 	}
 
 	// Insert recent raw metrics so both pods are considered active.
-	if err := s.InsertRawMetric(ctx, idA, now, 10, 1024); err != nil {
+	if err := s.InsertRawMetric(ctx, idA, now, 10, 1024, 0); err != nil {
 		t.Fatalf("insert raw metric for solo-a failed: %v", err)
 	}
-	if err := s.InsertRawMetric(ctx, idB, now, 10, 1024); err != nil {
+	if err := s.InsertRawMetric(ctx, idB, now, 10, 1024, 0); err != nil {
 		t.Fatalf("insert raw metric for solo-b failed: %v", err)
 	}
 
@@ -352,7 +352,7 @@ func TestPodsWithMissingConfig_SupersededByRollingDeploy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upsert old pod failed: %v", err)
 	}
-	if err := s.InsertRawMetric(ctx, oldID, now-120, 10, 1024); err != nil {
+	if err := s.InsertRawMetric(ctx, oldID, now-120, 10, 1024, 0); err != nil {
 		t.Fatalf("insert raw metric for old pod failed: %v", err)
 	}
 
@@ -367,7 +367,7 @@ func TestPodsWithMissingConfig_SupersededByRollingDeploy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upsert new pod failed: %v", err)
 	}
-	if err := s.InsertRawMetric(ctx, newID, now, 10, 1024); err != nil {
+	if err := s.InsertRawMetric(ctx, newID, now, 10, 1024, 0); err != nil {
 		t.Fatalf("insert raw metric for new pod failed: %v", err)
 	}
 
@@ -391,7 +391,7 @@ func TestPodsWithMissingConfig_SupersededByRollingDeploy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upsert other old pod failed: %v", err)
 	}
-	if err := s.InsertRawMetric(ctx, oldID2, now-120, 10, 1024); err != nil {
+	if err := s.InsertRawMetric(ctx, oldID2, now-120, 10, 1024, 0); err != nil {
 		t.Fatalf("insert raw metric for other old pod failed: %v", err)
 	}
 	newID2, err := s.UpsertPodMetadata(ctx, PodMeta{
@@ -404,7 +404,7 @@ func TestPodsWithMissingConfig_SupersededByRollingDeploy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upsert other new pod failed: %v", err)
 	}
-	if err := s.InsertRawMetric(ctx, newID2, now, 10, 1024); err != nil {
+	if err := s.InsertRawMetric(ctx, newID2, now, 10, 1024, 0); err != nil {
 		t.Fatalf("insert raw metric for other new pod failed: %v", err)
 	}
 
@@ -460,10 +460,10 @@ func TestAggStatsForWindow_StandalonePods(t *testing.T) {
 	}
 
 	// Insert recent raw metrics so both pods are considered active.
-	if err := s.InsertRawMetric(ctx, p1, now, 50, 1024); err != nil {
+	if err := s.InsertRawMetric(ctx, p1, now, 50, 1024, 0); err != nil {
 		t.Fatalf("insert raw metric solo-a failed: %v", err)
 	}
-	if err := s.InsertRawMetric(ctx, p2, now, 50, 1024); err != nil {
+	if err := s.InsertRawMetric(ctx, p2, now, 50, 1024, 0); err != nil {
 		t.Fatalf("insert raw metric solo-b failed: %v", err)
 	}
 
@@ -525,11 +525,11 @@ func TestAggStatsForWindow_ExcludesInactivePods(t *testing.T) {
 	}
 
 	// Only the active pod gets a recent raw metric.
-	if err := s.InsertRawMetric(ctx, active, now, 50, 1024); err != nil {
+	if err := s.InsertRawMetric(ctx, active, now, 50, 1024, 0); err != nil {
 		t.Fatalf("insert raw metric active failed: %v", err)
 	}
 	// inactive pod has a raw metric older than the activeSince cutoff.
-	if err := s.InsertRawMetric(ctx, inactive, now-3600, 50, 1024); err != nil {
+	if err := s.InsertRawMetric(ctx, inactive, now-3600, 50, 1024, 0); err != nil {
 		t.Fatalf("insert raw metric inactive failed: %v", err)
 	}
 
@@ -544,6 +544,107 @@ func TestAggStatsForWindow_ExcludesInactivePods(t *testing.T) {
 	if len(stats) == 1 && stats[0].OwnerName != "active" {
 		t.Errorf("expected active pod, got %q", stats[0].OwnerName)
 	}
+}
+
+func TestPodsWithHighRestarts(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	newStore := func(t *testing.T) *Store {
+		t.Helper()
+		s, err := Open(":memory:")
+		if err != nil {
+			t.Fatalf("open store: %v", err)
+		}
+		t.Cleanup(func() { _ = s.Close() })
+		return s
+	}
+
+	t.Run("DeltaAboveThreshold_Included", func(t *testing.T) {
+		s := newStore(t)
+		id, _ := s.UpsertPodMetadata(ctx, PodMeta{Namespace: "ns", PodName: "p", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w"})
+		_ = s.InsertRawMetric(ctx, id, now-120, 10, 1024, 0)
+		_ = s.InsertRawMetric(ctx, id, now-60, 10, 1024, 3)
+		_ = s.InsertRawMetric(ctx, id, now, 10, 1024, 7)
+
+		results, err := s.PodsWithHighRestarts(ctx, now-300, 5)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+		if results[0].RestartDelta != 7 {
+			t.Errorf("expected RestartDelta=7, got %d", results[0].RestartDelta)
+		}
+	})
+
+	t.Run("DeltaBelowThreshold_Excluded", func(t *testing.T) {
+		s := newStore(t)
+		id, _ := s.UpsertPodMetadata(ctx, PodMeta{Namespace: "ns", PodName: "p", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w"})
+		_ = s.InsertRawMetric(ctx, id, now-60, 10, 1024, 0)
+		_ = s.InsertRawMetric(ctx, id, now, 10, 1024, 2)
+
+		results, err := s.PodsWithHighRestarts(ctx, now-300, 5)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(results) != 0 {
+			t.Errorf("expected 0 results, got %d", len(results))
+		}
+	})
+
+	t.Run("OOMKilled_PropagatedCorrectly", func(t *testing.T) {
+		s := newStore(t)
+		id, _ := s.UpsertPodMetadata(ctx, PodMeta{Namespace: "ns", PodName: "p", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w",
+			LastTerminationReason: "OOMKilled"})
+		_ = s.InsertRawMetric(ctx, id, now-60, 10, 1024, 0)
+		_ = s.InsertRawMetric(ctx, id, now, 10, 1024, 6)
+
+		results, err := s.PodsWithHighRestarts(ctx, now-300, 5)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+		if !results[0].OOMKilled {
+			t.Errorf("expected OOMKilled=true")
+		}
+	})
+
+	t.Run("MultiReplica_MixedTerminationReasons_SingleResult", func(t *testing.T) {
+		// Regression: last_termination_reason in GROUP BY caused duplicate rows when replicas
+		// had different termination reasons. One OOMKilled, one clean — must collapse into one result.
+		s := newStore(t)
+		oomID, _ := s.UpsertPodMetadata(ctx, PodMeta{Namespace: "ns", PodName: "p-oom", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w",
+			LastTerminationReason: "OOMKilled"})
+		cleanID, _ := s.UpsertPodMetadata(ctx, PodMeta{Namespace: "ns", PodName: "p-clean", ContainerName: "c",
+			OwnerKind: "Deployment", OwnerName: "w",
+			LastTerminationReason: ""})
+		_ = s.InsertRawMetric(ctx, oomID, now-60, 10, 1024, 0)
+		_ = s.InsertRawMetric(ctx, oomID, now, 10, 1024, 8)
+		_ = s.InsertRawMetric(ctx, cleanID, now-60, 10, 1024, 0)
+		_ = s.InsertRawMetric(ctx, cleanID, now, 10, 1024, 6)
+
+		results, err := s.PodsWithHighRestarts(ctx, now-300, 5)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result (workload-level grouping), got %d", len(results))
+		}
+		if results[0].RestartDelta != 8 {
+			t.Errorf("expected RestartDelta=8 (max across replicas), got %d", results[0].RestartDelta)
+		}
+		if !results[0].OOMKilled {
+			t.Errorf("expected OOMKilled=true (any replica OOMKilled sets the flag)")
+		}
+	})
 }
 
 func TestUpsertAggBucket(t *testing.T) {

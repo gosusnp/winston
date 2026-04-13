@@ -20,6 +20,8 @@ const (
 	DangerZone      Profile = "danger_zone"
 	NoLimits        Profile = "no_limits"
 	NoRequests      Profile = "no_requests"
+	HighRestarts    Profile = "high_restarts"
+	OOMKilled       Profile = "oom_killed"
 )
 
 type CPUStats struct {
@@ -58,6 +60,7 @@ type WorkloadResult struct {
 	ContainerName string
 	Profiles      []Profile
 	SampleCount   int64
+	Restarts      int64
 	Current       ResourceConfig
 	CPU           CPUStats
 	Mem           MemStats
@@ -72,6 +75,7 @@ type Thresholds struct {
 	OverProvisionedMinMemB int64
 	GhostLimitMinCPUM      int64
 	GhostLimitMinMemB      int64
+	HighRestartThreshold   int64
 }
 
 type Analyzer struct {
@@ -244,6 +248,73 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time,
 				}
 			}
 			results = append(results, wr)
+			index[key] = len(results) - 1
+		}
+	}
+
+	// Merge high_restarts / oom_killed from metrics_raw restart count delta.
+	restartThreshold := thresholds.HighRestartThreshold
+	if restartThreshold <= 0 {
+		// Safety net for callers that pass a zero-value Thresholds (e.g. tests).
+		// main.go always sets this from WINSTON_HIGH_RESTART_THRESHOLD (default 5).
+		restartThreshold = 5
+	}
+	restartPods, err := a.store.PodsWithHighRestarts(ctx, now.Add(-a.podTTL).Unix(), restartThreshold)
+	if err != nil {
+		return nil, fmt.Errorf("getting pods with high restarts: %w", err)
+	}
+
+	for _, p := range restartPods {
+		var profiles []Profile
+		profiles = append(profiles, HighRestarts)
+		if p.OOMKilled {
+			profiles = append(profiles, OOMKilled)
+		}
+
+		key := resultKey{p.Namespace, p.OwnerKind, p.OwnerName, p.ContainerName}
+		if i, ok := index[key]; ok {
+			results[i].Profiles = append(results[i].Profiles, profiles...)
+			results[i].Restarts = p.RestartDelta
+		} else {
+			wr := WorkloadResult{
+				Namespace:     p.Namespace,
+				OwnerKind:     p.OwnerKind,
+				OwnerName:     p.OwnerName,
+				ContainerName: p.ContainerName,
+				Profiles:      profiles,
+				Restarts:      p.RestartDelta,
+				Current: ResourceConfig{
+					CPURequestM: p.CPURequestM,
+					CPULimitM:   p.CPULimitM,
+					MemRequestB: p.MemRequestB,
+					MemLimitB:   p.MemLimitB,
+				},
+			}
+			if agg, ok := statsIndex[key]; ok {
+				wr.SampleCount = agg.SampleCount
+				wr.CPU = CPUStats{
+					AvgM:    agg.CPUAvgM,
+					MaxM:    agg.CPUMaxM,
+					StddevM: agg.CPUSTDDevM,
+					P50M:    agg.CPUP50M,
+					P75M:    agg.CPUP75M,
+					P90M:    agg.CPUP90M,
+					P95M:    agg.CPUP95M,
+					P99M:    agg.CPUP99M,
+				}
+				wr.Mem = MemStats{
+					AvgB:    agg.MemAvgB,
+					MaxB:    agg.MemMaxB,
+					StddevB: agg.MemSTDDevB,
+					P50B:    agg.MemP50B,
+					P75B:    agg.MemP75B,
+					P90B:    agg.MemP90B,
+					P95B:    agg.MemP95B,
+					P99B:    agg.MemP99B,
+				}
+			}
+			results = append(results, wr)
+			index[key] = len(results) - 1
 		}
 	}
 
@@ -269,22 +340,26 @@ func (a *Analyzer) Analyze(ctx context.Context, lookbackDays int, now time.Time,
 }
 
 func profileSeverity(profiles []Profile) int {
-	min := 4
+	min := 99
 	for _, p := range profiles {
 		var s int
 		switch p {
-		case DangerZone:
+		case OOMKilled:
 			s = 1
-		case NoLimits:
+		case DangerZone:
 			s = 2
-		case NoRequests:
+		case HighRestarts:
 			s = 3
-		case OverProvisioned:
+		case NoLimits:
 			s = 4
-		case GhostLimit:
+		case NoRequests:
 			s = 5
-		default:
+		case OverProvisioned:
 			s = 6
+		case GhostLimit:
+			s = 7
+		default:
+			s = 8
 		}
 		if s < min {
 			min = s

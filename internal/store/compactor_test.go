@@ -26,11 +26,11 @@ func TestCompact_RawTo1h(t *testing.T) {
 	now := time.Unix(3600*10, 0) // Hour 10
 	for i := 0; i < 15; i++ {
 		// Hour 8: 3600 * 8
-		if err := s.InsertRawMetric(ctx, podID, 3600*8+int64(i*60), 10, 100); err != nil {
+		if err := s.InsertRawMetric(ctx, podID, 3600*8+int64(i*60), 10, 100, 0); err != nil {
 			t.Fatalf("insert raw metric failed: %v", err)
 		}
 		// Hour 9: 3600 * 9
-		if err := s.InsertRawMetric(ctx, podID, 3600*9+int64(i*60), 20, 200); err != nil {
+		if err := s.InsertRawMetric(ctx, podID, 3600*9+int64(i*60), 20, 200, 0); err != nil {
 			t.Fatalf("insert raw metric failed: %v", err)
 		}
 	}
@@ -101,7 +101,7 @@ func TestCompact_UpdatesLastSeenAt(t *testing.T) {
 	now := time.Unix(3600*10, 0)
 	maxCapturedAt := int64(3600*8 + 14*60)
 	for i := 0; i < 15; i++ {
-		if err := s.InsertRawMetric(ctx, podID, 3600*8+int64(i*60), 10, 100); err != nil {
+		if err := s.InsertRawMetric(ctx, podID, 3600*8+int64(i*60), 10, 100, 0); err != nil {
 			t.Fatalf("insert raw metric failed: %v", err)
 		}
 	}
@@ -179,7 +179,7 @@ func TestCompact_MonotonicLastSeenAt(t *testing.T) {
 	// Compact some old data
 	now := time.Unix(3600*10, 0)
 	for i := 0; i < 5; i++ {
-		if err := s.InsertRawMetric(ctx, podID, 3600*8+int64(i*60), 10, 100); err != nil {
+		if err := s.InsertRawMetric(ctx, podID, 3600*8+int64(i*60), 10, 100, 0); err != nil {
 			t.Fatalf("insert raw metric failed: %v", err)
 		}
 	}

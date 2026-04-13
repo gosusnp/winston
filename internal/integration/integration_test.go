@@ -89,7 +89,7 @@ func TestFullChain(t *testing.T) {
 		ts := seedStart.Add(time.Duration(i) * time.Minute).Unix()
 
 		// A: CPU consistently 30m
-		err = s.InsertRawMetric(ctx, idA, ts, 30, 64*1024*1024)
+		err = s.InsertRawMetric(ctx, idA, ts, 30, 64*1024*1024, 0)
 		require.NoError(t, err)
 
 		// B: CPU p90 at 460m
@@ -97,11 +97,11 @@ func TestFullChain(t *testing.T) {
 		if i%10 == 0 {
 			cpuB = 100
 		}
-		err = s.InsertRawMetric(ctx, idB, ts, cpuB, 64*1024*1024)
+		err = s.InsertRawMetric(ctx, idB, ts, cpuB, 64*1024*1024, 0)
 		require.NoError(t, err)
 
 		// C: CPU max 10m
-		err = s.InsertRawMetric(ctx, idC, ts, 10, 512*1024*1024)
+		err = s.InsertRawMetric(ctx, idC, ts, 10, 512*1024*1024, 0)
 		require.NoError(t, err)
 	}
 

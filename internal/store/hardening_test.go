@@ -61,7 +61,7 @@ func TestConcurrentReadsDuringCompaction(t *testing.T) {
 	now := time.Now()
 	for i := 0; i < 5000; i++ {
 		ts := now.Add(time.Duration(-i) * time.Minute).Unix()
-		err := s.InsertRawMetric(ctx, podID, ts, 10, 100)
+		err := s.InsertRawMetric(ctx, podID, ts, 10, 100, 0)
 		require.NoError(t, err)
 	}
 

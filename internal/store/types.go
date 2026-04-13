@@ -4,17 +4,18 @@
 package store
 
 type PodMeta struct {
-	Namespace     string
-	PodName       string
-	ContainerName string
-	OwnerKind     string
-	OwnerName     string
-	CPURequestM   int64
-	CPULimitM     int64
-	MemRequestB   int64
-	MemLimitB     int64
-	FirstSeenAt   int64
-	LastSeenAt    int64
+	Namespace             string
+	PodName               string
+	ContainerName         string
+	OwnerKind             string
+	OwnerName             string
+	CPURequestM           int64
+	CPULimitM             int64
+	MemRequestB           int64
+	MemLimitB             int64
+	FirstSeenAt           int64
+	LastSeenAt            int64
+	LastTerminationReason string
 }
 
 type LatestRawRow struct {
@@ -79,6 +80,19 @@ type UnboundPod struct {
 	MemRequestB   int64
 	MemLimitB     int64
 	RawSamples    int64
+}
+
+type RestartPod struct {
+	Namespace     string
+	OwnerKind     string
+	OwnerName     string
+	ContainerName string
+	CPURequestM   int64
+	CPULimitM     int64
+	MemRequestB   int64
+	MemLimitB     int64
+	RestartDelta  int64
+	OOMKilled     bool
 }
 
 type AggStats struct {

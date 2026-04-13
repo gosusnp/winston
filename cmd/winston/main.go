@@ -72,6 +72,7 @@ func loadConfig() config {
 			OverProvisionedMinMemB: int64(getEnvInt("WINSTON_OVER_PROVISIONED_MIN_MEM_B", 0)),
 			GhostLimitMinCPUM:      int64(getEnvInt("WINSTON_GHOST_LIMIT_MIN_CPU_M", 0)),
 			GhostLimitMinMemB:      int64(getEnvInt("WINSTON_GHOST_LIMIT_MIN_MEM_B", 0)),
+			HighRestartThreshold:   int64(getEnvInt("WINSTON_HIGH_RESTART_THRESHOLD", 5)),
 		},
 	}
 }

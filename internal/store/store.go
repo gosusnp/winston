@@ -67,6 +67,11 @@ func Open(path string) (*Store, error) {
 			continue
 		}
 		if _, err := db.Exec(query); err != nil {
+			// ALTER TABLE ADD COLUMN fails with "duplicate column name" when the
+			// column already exists (e.g. on an existing DB). Skip those safely.
+			if strings.Contains(err.Error(), "duplicate column name") {
+				continue
+			}
 			return nil, fmt.Errorf("running schema migration: %w", err)
 		}
 	}
@@ -116,8 +121,8 @@ func (s *Store) UpsertPodMetadata(ctx context.Context, meta PodMeta) (int64, err
 		INSERT INTO pod_metadata (
 			namespace, pod_name, container_name, owner_kind, owner_name,
 			cpu_request_m, cpu_limit_m, mem_request_b, mem_limit_b,
-			first_seen_at, last_seen_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			first_seen_at, last_seen_at, last_termination_reason
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(namespace, pod_name, container_name) DO UPDATE SET
 			owner_kind = excluded.owner_kind,
 			owner_name = excluded.owner_name,
@@ -125,14 +130,15 @@ func (s *Store) UpsertPodMetadata(ctx context.Context, meta PodMeta) (int64, err
 			cpu_limit_m = excluded.cpu_limit_m,
 			mem_request_b = excluded.mem_request_b,
 			mem_limit_b = excluded.mem_limit_b,
-			last_seen_at = MAX(last_seen_at, excluded.last_seen_at)
+			last_seen_at = MAX(last_seen_at, excluded.last_seen_at),
+			last_termination_reason = excluded.last_termination_reason
 		RETURNING id;
 	`
 	var id int64
 	err := s.db.QueryRowContext(ctx, query,
 		meta.Namespace, meta.PodName, meta.ContainerName, meta.OwnerKind, meta.OwnerName,
 		meta.CPURequestM, meta.CPULimitM, meta.MemRequestB, meta.MemLimitB,
-		meta.FirstSeenAt, meta.LastSeenAt,
+		meta.FirstSeenAt, meta.LastSeenAt, meta.LastTerminationReason,
 	).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("upserting pod metadata: %w", err)
@@ -140,15 +146,16 @@ func (s *Store) UpsertPodMetadata(ctx context.Context, meta PodMeta) (int64, err
 	return id, nil
 }
 
-func (s *Store) InsertRawMetric(ctx context.Context, podID int64, capturedAt int64, cpuM, memB int64) error {
+func (s *Store) InsertRawMetric(ctx context.Context, podID int64, capturedAt int64, cpuM, memB, restartCount int64) error {
 	query := `
-		INSERT INTO metrics_raw (pod_id, captured_at, cpu_m, mem_b)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO metrics_raw (pod_id, captured_at, cpu_m, mem_b, restart_count)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(pod_id, captured_at) DO UPDATE SET
 			cpu_m = excluded.cpu_m,
-			mem_b = excluded.mem_b;
+			mem_b = excluded.mem_b,
+			restart_count = excluded.restart_count;
 	`
-	_, err := s.db.ExecContext(ctx, query, podID, capturedAt, cpuM, memB)
+	_, err := s.db.ExecContext(ctx, query, podID, capturedAt, cpuM, memB, restartCount)
 	if err != nil {
 		return fmt.Errorf("inserting raw metric: %w", err)
 	}
@@ -468,6 +475,53 @@ func (s *Store) PodsWithMissingConfig(ctx context.Context, since int64) ([]Unbou
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows error in pods with missing config: %w", err)
+	}
+	return results, nil
+}
+
+// PodsWithHighRestarts returns workloads where the restart count delta
+// (MAX - MIN across all pod replicas) is >= threshold over the active window.
+// Also returns the last_termination_reason so callers can detect OOM kills.
+func (s *Store) PodsWithHighRestarts(ctx context.Context, since int64, threshold int64) ([]RestartPod, error) {
+	query := `
+		SELECT m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name,
+		       m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b,
+		       MAX(pod_restarts.delta) as max_restart_delta,
+		       MAX(CASE WHEN m.last_termination_reason = 'OOMKilled' THEN 1 ELSE 0 END) as was_oom_killed
+		FROM pod_metadata m
+		JOIN (
+		    SELECT r.pod_id, MAX(r.restart_count) - MIN(r.restart_count) as delta
+		    FROM metrics_raw r
+		    WHERE r.captured_at >= ?
+		    GROUP BY r.pod_id
+		) pod_restarts ON pod_restarts.pod_id = m.id
+		GROUP BY m.namespace, COALESCE(NULLIF(m.owner_kind, ''), ''), COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name,
+		         m.cpu_request_m, m.cpu_limit_m, m.mem_request_b, m.mem_limit_b
+		HAVING max_restart_delta >= ?
+		ORDER BY max_restart_delta DESC, m.namespace, COALESCE(NULLIF(m.owner_name, ''), m.pod_name), m.container_name;
+	`
+	rows, err := s.db.QueryContext(ctx, query, since, threshold)
+	if err != nil {
+		return nil, fmt.Errorf("querying pods with high restarts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []RestartPod
+	for rows.Next() {
+		var p RestartPod
+		var wasOOMKilled int
+		if err := rows.Scan(
+			&p.Namespace, &p.OwnerKind, &p.OwnerName, &p.ContainerName,
+			&p.CPURequestM, &p.CPULimitM, &p.MemRequestB, &p.MemLimitB,
+			&p.RestartDelta, &wasOOMKilled,
+		); err != nil {
+			return nil, fmt.Errorf("scanning restart pod row: %w", err)
+		}
+		p.OOMKilled = wasOOMKilled == 1
+		results = append(results, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error in pods with high restarts: %w", err)
 	}
 	return results, nil
 }

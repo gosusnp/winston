@@ -29,7 +29,7 @@ func TestStats_OK(t *testing.T) {
 	podID, _ := s.UpsertPodMetadata(ctx, store.PodMeta{
 		Namespace: "default", PodName: "pod1", ContainerName: "c1",
 	})
-	_ = s.InsertRawMetric(ctx, podID, time.Now().Unix(), 10, 100)
+	_ = s.InsertRawMetric(ctx, podID, time.Now().Unix(), 10, 100, 0)
 
 	srv := New(s, analyzer.New(s, time.Hour), nil, analyzer.Thresholds{})
 	ts := httptest.NewServer(srv.Handler())
@@ -192,7 +192,7 @@ func TestMetrics_WithData(t *testing.T) {
 		OwnerKind: "Deployment", OwnerName: "my-api",
 		CPURequestM: 0, CPULimitM: 0, MemRequestB: 0, MemLimitB: 0,
 	})
-	_ = s.InsertRawMetric(ctx, podID, time.Now().Unix(), 10, 100)
+	_ = s.InsertRawMetric(ctx, podID, time.Now().Unix(), 10, 100, 0)
 
 	srv := New(s, analyzer.New(s, time.Hour), nil, analyzer.Thresholds{})
 	ts := httptest.NewServer(srv.Handler())

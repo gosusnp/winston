@@ -94,6 +94,7 @@ type exuberantWorkloadItem struct {
 	Container   string                  `json:"container"`
 	Profiles    []analyzer.Profile      `json:"profiles"`
 	SampleCount int64                   `json:"sample_count"`
+	Restarts    int64                   `json:"restarts,omitempty"`
 	Current     exuberantResourceConfig `json:"current"`
 	CPU         exuberantCPUStats       `json:"cpu"`
 	Mem         exuberantMemStats       `json:"mem"`
@@ -139,6 +140,7 @@ func RenderExuberantJSON(w io.Writer, results []analyzer.WorkloadResult, window 
 			Container:   res.ContainerName,
 			Profiles:    res.Profiles,
 			SampleCount: res.SampleCount,
+			Restarts:    res.Restarts,
 			Current: exuberantResourceConfig{
 				CPURequestM: res.Current.CPURequestM,
 				CPULimitM:   res.Current.CPULimitM,
@@ -301,6 +303,60 @@ func RenderExuberantMarkdown(w io.Writer, results []analyzer.WorkloadResult, win
 		}
 	}
 
+	// OOM Killed
+	oomKilled := filterByProfile(results, analyzer.OOMKilled)
+	if len(oomKilled) > 0 {
+		if _, err := fmt.Fprintf(w, "## OOM Killed — %d workload(s)\n", len(oomKilled)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "Last container exit was OOMKilled and restarts are ongoing. Memory limit is too low or there is a memory leak.\n\n"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "| Namespace | Workload | Container | Restarts | Mem Max | Mem Limit |\n"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "|---|---|---|---|---|---|\n"); err != nil {
+			return err
+		}
+		for _, r := range oomKilled {
+			if _, err := fmt.Fprintf(w, "| %s | %s/%s | %s | %d | %s | %s |\n",
+				r.Namespace, r.OwnerKind, r.OwnerName, r.ContainerName,
+				r.Restarts, formatMemOrNA(r.Mem.MaxB, r.SampleCount), formatMem(r.Current.MemLimitB)); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintf(w, "\n"); err != nil {
+			return err
+		}
+	}
+
+	// High Restarts
+	highRestarts := filterByProfile(results, analyzer.HighRestarts)
+	if len(highRestarts) > 0 {
+		if _, err := fmt.Fprintf(w, "## High Restarts — %d workload(s)\n", len(highRestarts)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "Restart count increased significantly in the observation window.\n\n"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "| Namespace | Workload | Container | Restarts | CPU Avg | Mem Avg |\n"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "|---|---|---|---|---|---|\n"); err != nil {
+			return err
+		}
+		for _, r := range highRestarts {
+			if _, err := fmt.Fprintf(w, "| %s | %s/%s | %s | %d | %s | %s |\n",
+				r.Namespace, r.OwnerKind, r.OwnerName, r.ContainerName,
+				r.Restarts, formatCPUOrNA(r.CPU.AvgM, r.SampleCount), formatMemOrNA(r.Mem.AvgB, r.SampleCount)); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintf(w, "\n"); err != nil {
+			return err
+		}
+	}
+
 	// Ghost Limit
 	ghostLimit := filterByProfile(results, analyzer.GhostLimit)
 	if len(ghostLimit) > 0 {
@@ -354,4 +410,20 @@ func formatMem(b int64) string {
 		return "none"
 	}
 	return fmt.Sprintf("%dMi", b/1048576)
+}
+
+// formatCPUOrNA renders a CPU value, returning "—" when no agg data is available.
+func formatCPUOrNA(m int64, sampleCount int64) string {
+	if sampleCount == 0 {
+		return "—"
+	}
+	return formatCPU(m)
+}
+
+// formatMemOrNA renders a memory value, returning "—" when no agg data is available.
+func formatMemOrNA(b int64, sampleCount int64) string {
+	if sampleCount == 0 {
+		return "—"
+	}
+	return formatMem(b)
 }

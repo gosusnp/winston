@@ -77,7 +77,7 @@ func (c *Collector) collect(ctx context.Context) {
 		ownerKind, ownerName := c.resolveOwner(ctx, pod)
 
 		for _, cm := range pm.Containers {
-			// Find matching container in pod spec
+			// Find matching container spec and status
 			var containerSpec *corev1.Container
 			for i := range pod.Spec.Containers {
 				if pod.Spec.Containers[i].Name == cm.Name {
@@ -90,21 +90,34 @@ func (c *Collector) collect(ctx context.Context) {
 				continue
 			}
 
+			var restartCount int64
+			var lastTerminationReason string
+			for _, cs := range pod.Status.ContainerStatuses {
+				if cs.Name == cm.Name {
+					restartCount = int64(cs.RestartCount)
+					if cs.LastTerminationState.Terminated != nil {
+						lastTerminationReason = cs.LastTerminationState.Terminated.Reason
+					}
+					break
+				}
+			}
+
 			cpuM := cm.Usage.Cpu().MilliValue()
 			memB := cm.Usage.Memory().Value()
 
 			meta := store.PodMeta{
-				Namespace:     pod.Namespace,
-				PodName:       pod.Name,
-				ContainerName: cm.Name,
-				OwnerKind:     ownerKind,
-				OwnerName:     ownerName,
-				CPURequestM:   containerSpec.Resources.Requests.Cpu().MilliValue(),
-				CPULimitM:     containerSpec.Resources.Limits.Cpu().MilliValue(),
-				MemRequestB:   containerSpec.Resources.Requests.Memory().Value(),
-				MemLimitB:     containerSpec.Resources.Limits.Memory().Value(),
-				FirstSeenAt:   now.Unix(),
-				LastSeenAt:    now.Unix(),
+				Namespace:             pod.Namespace,
+				PodName:               pod.Name,
+				ContainerName:         cm.Name,
+				OwnerKind:             ownerKind,
+				OwnerName:             ownerName,
+				CPURequestM:           containerSpec.Resources.Requests.Cpu().MilliValue(),
+				CPULimitM:             containerSpec.Resources.Limits.Cpu().MilliValue(),
+				MemRequestB:           containerSpec.Resources.Requests.Memory().Value(),
+				MemLimitB:             containerSpec.Resources.Limits.Memory().Value(),
+				FirstSeenAt:           now.Unix(),
+				LastSeenAt:            now.Unix(),
+				LastTerminationReason: lastTerminationReason,
 			}
 
 			podID, err := c.store.UpsertPodMetadata(ctx, meta)
@@ -113,7 +126,7 @@ func (c *Collector) collect(ctx context.Context) {
 				continue
 			}
 
-			err = c.store.InsertRawMetric(ctx, podID, now.Unix(), cpuM, memB)
+			err = c.store.InsertRawMetric(ctx, podID, now.Unix(), cpuM, memB, restartCount)
 			if err != nil {
 				log.Printf("Error inserting raw metric for podID %d: %v", podID, err)
 				continue
