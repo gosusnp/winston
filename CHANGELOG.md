@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/gosusnp/winston/compare/v0.2.2...v0.2.3) (2026-04-13)
+
+
+### Features
+
+* track restarts and oomkills ([21fd512](https://github.com/gosusnp/winston/commit/21fd51292830f36698112b8c3a6f94b9baa59fd7))
+
 ## [0.2.2](https://github.com/gosusnp/winston/compare/v0.2.1...v0.2.2) (2026-03-22)
 
 
